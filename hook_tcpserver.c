@@ -21,6 +21,7 @@ void server_reader(void *arg) {
 		// read_byte = RB_Get_FreeSize(&c.read_rb) < READ_CACHE_SIZE ? RB_Get_FreeSize(&c.read_rb) : READ_CACHE_SIZE;
 		//* 这里尽可能多的读到环形缓冲区，然后在依次放入环形缓冲区处理消息
 		//* 可以用一个循环，如果缓冲区读完了，那就继续从临时缓冲区拿。缓冲区读完则跳出处理，来到外层继续下一个循环。
+		printf("kv_array[0]:key->%s\n", (char*)c.kv_array->key);
 		printf("wait recv\n");
 		ret = recv(fd, c.read_cache.cache, READ_CACHE_SIZE, 0);
 		if (ret > 0) {

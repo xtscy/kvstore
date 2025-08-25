@@ -6,8 +6,8 @@
 
 
 #define READ_CACHE_SIZE 1024*16
-#define RING_BUF_SIZE 8192
-#define KV_ARRAY_SIZE 100
+#define RING_BUF_SIZE 1000
+#define KV_ARRAY_SIZE 1000
 
 
 typedef uint32_t message_header_t;

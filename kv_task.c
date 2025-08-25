@@ -63,6 +63,7 @@ int Process_Task(connection_t *c) {
         } 
         case 1 : {
             //* GET
+            printf("GET request\n");
             int pos = -1;
             flag = KV_GET(c, c->tokens[1], &pos);
 
@@ -79,6 +80,8 @@ int Process_Task(connection_t *c) {
                 }
 
             } else if (flag == -1) {
+                char *buf = "FALSE";
+                send(c->fd, buf, strlen(buf), 0);
                 //* send 不存在
             }
             break;

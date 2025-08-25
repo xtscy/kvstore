@@ -32,9 +32,13 @@ void Process_Message(connection_t *c)
         else
         {
             //* 静态缓存区存在数据那么继续处理
+            printf("read_to_ring之前current KEY0:->%s\n", (char*)c->kv_array[0].key);
             read_to_ring(c);
+            printf("read_to_ring之后current KEY0:->%s\n", (char*)c->kv_array[0].key);
             //* 当把数据读到环形缓冲区后，在该环形缓冲区中处理数据
             Process_Protocal(c);
+            printf("Process_Protocal之后current KEY0:->%s\n", (char*)c->kv_array[0].key);
+
         }
     }
 }
@@ -84,8 +88,12 @@ void Process_Protocal(connection_t *c)
                 RB_Read_String(&c->read_rb, c->pkt_data, c->current_header);
                 printf("处理pocket:%s\n", c->pkt_data);
                 if(Process_Task(c) == 0) {
+                    printf("current KEY0:->%s\n", (char*)c->kv_array[0].key);
                     printf("1个完整的请求被处理\n");
+
                     memset(c->pkt_data, 0, RING_BUF_SIZE+1);
+                    printf("current KEY0:->%s\n", (char*)c->kv_array[0].key);
+
                 }
                 c->state = PARSE_STATE_HEADER;
                 c->current_header = 0;

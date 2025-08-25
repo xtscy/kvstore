@@ -62,6 +62,8 @@ int kv_free(void *p) {
 //*返回0找到有效key，没找到返回-1
 int KV_GET(connection_t *c, char *k, int *pos) {
     printf("3\n");
+    printf("GEt key:-> %s\n", k);
+    printf("current key:->%s\n", (char*)c->kv_array[0].key);
     for (int i = 0; i < KV_ARRAY_SIZE; i++) {
         if (c->kv_array[i].key != NULL){
             if (strcmp(c->kv_array[i].key, k) == 0) {
@@ -89,6 +91,7 @@ int KV_GET(connection_t *c, char *k, int *pos) {
 /// @param v 
 /// @return 成功返回0，key或者value非法返回-1
 int KV_SET(connection_t *c, char *k, char *v) {
+
     //* malloc值到KV_TYPE中，值得不同，类型不同
     //* 分为字符串类型和数值类型，这里数值类型直接用double
     //* 如果要实现INCR，则是原子操作的。
@@ -123,23 +126,23 @@ int KV_SET(connection_t *c, char *k, char *v) {
         }
         //* key不存在
         char* sp = 0;//*sp: str_pointer
-        
+        printf("SET的KEY不存在");
         KV_MALLOC(char, strlen(k) + 1, &sp);
         printf("4\n");
         memset(sp, 0, strlen(k) + 1);
         printf("4\n");
         strcpy(sp, k);
-
+        printf("sp->:%s\n", sp);
         for (int i = 0; i < KV_ARRAY_SIZE; i++) {
             if (c->kv_array[i].key == NULL) {
                 c->kv_array[i].key = (void*)sp;
                 c->kv_array[i].type = TYPE_INTEGER;
                 c->kv_array[i].value = lp;
-                printf("键值写入成功\n");
-                break;
+                printf("键值写入成功,pos: %d\n", i);
+                return 0;
             }
         }
-        //* 已经写入到kv_array
+
         //* 给客户端发送完成信息,在上一层完成send
     } else if (is_float(v)) {
         printf("is_float(v)");
@@ -147,7 +150,8 @@ int KV_SET(connection_t *c, char *k, char *v) {
         //* 作为普通字符串
         printf("is_common_str");
     }
-    return 0;
+    //* 未写入到kv_array
+    return -1;
 }
 
 
