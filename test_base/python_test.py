@@ -46,9 +46,18 @@ class NetworkTester:
         #     ,"SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002"
         #     ,"SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002"
         # ]  # 测试数据
-        self.message = [f"SET KEY{i} {i}" for i in range(7000)]
+        # print("1")
+        self.message = [f"SET KEY{i} {i}" for i in range(975)] +        \
+                        [f"GET KEY{i}" for i in range(975)] +           \
+                        [f"SET KEY{i} {i + 2}" for i in range(975)] +   \
+                        [f"GET KEY{i}" for i in range(975)]
+
+        # self.message = ["SET KEY1 2000", "GET KEY1"]
+        # self.message = [f"GET KEY{i}" for i in range(1)]
+        # print("2")
+        # self.message = ["SET KEY 2000", "GET KEY"]
         self.byte_message_body = [msg.encode('utf-8') for msg in self.message]
-        self.byte_message_size_array = [len(byte_msg).to_bytes(4, 'little', signed=False) for byte_msg in self.message] 
+        self.byte_message_size_array = [len(byte_msg).to_bytes(4, 'little', signed=False) for byte_msg in self.byte_message_body] 
         self.byte_message = [length + body for length, body in zip(self.byte_message_size_array, self.byte_message_body)]
         self.recv_message_size = recv_size
         
@@ -73,7 +82,7 @@ class NetworkTester:
         return resp_str
     def tcp_client(self, num_requests=10):
         """TCP客户端测试"""
-        results = []
+        # results = []
         sock = self.create_tcp_socket()
         
         try:
@@ -91,6 +100,7 @@ class NetworkTester:
                     end_time = time.time()
 
                     resp = self.bytes_to_string_resp(response)
+                    # if (resp == "FALSE") :
                     str_body = self.bytes_to_string(self.byte_message[index])
                     print(f"send:{str_body}->recv:{resp}")
                     latency = (end_time - start_time) * 1000  # 毫秒
@@ -110,30 +120,42 @@ class NetworkTester:
     def tcp_client2(self):
         sock = self.create_tcp_socket()
         latency_array = []
+        count_false = 0
         try:
+            # print("3")
             sock.connect((self.host, self.port))
+            # print("4")
             for i,msg in enumerate(self.byte_message):
+                print(f"i:{i}")
                 start_time = time.time()
                         
                 # 发送数据
+                # print("5")
                 sock.sendall(msg)
-                
+                # print("6")
                 # 接收响应
+                # print("7")
                 response = sock.recv(self.recv_message_size)
-
+                # print("8")
                 end_time = time.time()
 
                 resp = self.bytes_to_string_resp(response)
+                if resp == "FALSE":
+                    count += 1
+                
                 str_body = self.bytes_to_string(msg)
                 print(f"sends:{str_body}->recv:{resp}")
                 latency = (end_time - start_time) * 1000  # 毫秒
                 latency_array.append(latency)
                 print(f"TCP请求 {i+1}: 延迟 {latency:.2f} ms, 收到 {len(response)} 字节")
+                # time.sleep(200)
             avg_latency = sum(latency_array)/len(latency_array)
+            print(f"总共延迟: {sum(latency_array)} ms")
             print(f"平均延迟: {avg_latency:.5f} ms")
             print(f"最大延迟: {max(latency_array):.10f} ms")
             print(f"最小延迟: {min(latency_array):.10f} ms")
             print(f"length:{len(latency_array)}")
+            print(f"丢包个数:{count_false}")
         except Exception as e:
             print(f"TCP客户端错误: {e}")
         finally:
@@ -178,6 +200,7 @@ def run_single_test():
     
     print("=== TCP测试 ===")
     # tester.tcp_client(5)
+    # tester.tcp_client(2)
     tester.tcp_client2()
     # print("\n=== UDP测试 ===")
     # udp_results = tester.udp_client(5)
