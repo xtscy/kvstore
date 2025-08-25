@@ -1,0 +1,161 @@
+import socket
+import time
+import threading
+import multiprocessing
+import argparse
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+
+class NetworkTester:
+      
+    def __init__(self, host, port, recv_size):
+        self.host = host
+        self.port = port
+        self.message = [
+            "SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002"
+            ,"SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002"
+            ,"SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002"
+            ,"SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002"
+            ,"SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002"
+            ,"SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002"
+        ]  # 测试数据
+        self.byte_message_body = [msg.encode('utf-8') for msg in self.message]
+        self.byte_message_size_array = [len(byte_msg).to_bytes(4, 'little', signed=False) for byte_msg in self.message] 
+        self.byte_message = [length + body for length, body in zip(self.byte_message_size_array, self.byte_message_body)]
+        self.recv_message_size = recv_size
+        
+    def create_tcp_socket(self):
+        """创建TCP socket"""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return sock
+    
+    def create_udp_socket(self):
+        """创建UDP socket"""
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        return sock
+
+    def bytes_to_string(self, byte_data):
+        length_prefix = byte_data[:4]
+        body_length = int.from_bytes(length_prefix, 'little')
+        str_body = byte_data[4:4 + body_length].decode('utf-8')
+        return str(body_length) + str_body
+    def bytes_to_string_resp(self, byte_data):
+        resp_str = byte_data.decode('utf-8')
+        return resp_str
+    def tcp_client(self, num_requests=10):
+        """TCP客户端测试"""
+        results = []
+        sock = self.create_tcp_socket()
+        
+        try:
+            sock.connect((self.host, self.port))
+            for index in range(len(self.byte_message)):
+                latency_array = []
+                for i in range(num_requests):
+                    start_time = time.time()
+                    
+                    # 发送数据
+                    sock.sendall(self.byte_message[index])
+                    
+                    # 接收响应
+                    response = sock.recv(self.recv_message_size)
+                    end_time = time.time()
+
+                    resp = self.bytes_to_string_resp(response)
+                    str_body = self.bytes_to_string(self.byte_message[index])
+                    print(f"send:{str_body}->recv:{resp}")
+                    latency = (end_time - start_time) * 1000  # 毫秒
+                    latency_array.append(latency)
+                    print(f"TCP请求 {i+1}: 延迟 {latency:.2f} ms, 收到 {len(response)} 字节")
+                avg_latency = sum(latency_array)/len(latency_array)
+                print(f"平均延迟: {avg_latency:.2f} ms")
+                print(f"最大延迟: {max(latency_array):.2f} ms")
+                print(f"最小延迟: {min(latency_array):.2f} ms")
+
+        except Exception as e:
+            print(f"TCP客户端错误: {e}")
+        finally:
+            sock.close()
+        
+        # return results
+    def tcp_client2(self):
+        sock = self.create_tcp_socket()
+        try:
+            sock.connect((self.host, self.port))
+            for i,msg in enumerate(self.byte_message):
+                latency_array = []
+                start_time = time.time()
+                        
+                # 发送数据
+                sock.sendall(msg)
+                
+                # 接收响应
+                response = sock.recv(self.recv_message_size)
+
+                end_time = time.time()
+
+                resp = self.bytes_to_string_resp(response)
+                str_body = self.bytes_to_string(msg)
+                print(f"send:{str_body}->recv:{resp}")
+                latency = (end_time - start_time) * 1000  # 毫秒
+                latency_array.append(latency)
+                print(f"TCP请求 {i+1}: 延迟 {latency:.2f} ms, 收到 {len(response)} 字节")
+            avg_latency = sum(latency_array)/len(latency_array)
+            print(f"平均延迟: {avg_latency:.2f} ms")
+            print(f"最大延迟: {max(latency_array):.2f} ms")
+            print(f"最小延迟: {min(latency_array):.2f} ms")
+        except Exception as e:
+            print(f"TCP客户端错误: {e}")
+        finally:
+            sock.close()
+
+
+    def udp_client(self, num_requests=10):
+        """UDP客户端测试"""
+        results = []
+        sock = self.create_udp_socket()
+        
+        try:
+            for i in range(num_requests):
+                start_time = time.time()
+                
+                # 发送数据
+                sock.sendto(self.message, (self.host, self.port))
+                
+                # 尝试接收响应（UDP可能丢包）
+                try:
+                    sock.settimeout(2.0)  # 2秒超时
+                    response, addr = sock.recvfrom(self.message_size)
+                    end_time = time.time()
+                    
+                    latency = (end_time - start_time) * 1000  # 毫秒
+                    results.append(latency)
+                    
+                    print(f"UDP请求 {i+1}: 延迟 {latency:.2f} ms, 收到 {len(response)} 字节")
+                except socket.timeout:
+                    print(f"UDP请求 {i+1}: 超时")
+                    
+        except Exception as e:
+            print(f"UDP客户端错误: {e}")
+        finally:
+            sock.close()
+        
+        return results
+
+def run_single_test():
+    """单线程测试"""
+    tester = NetworkTester('192.168.253.134', 2000, 1024)
+    
+    print("=== TCP测试 ===")
+    # tester.tcp_client(5)
+    tester.tcp_client2()
+    # print("\n=== UDP测试 ===")
+    # udp_results = tester.udp_client(5)
+    
+    # if tcp_results:
+    #     print(f"\nTCP平均延迟: {sum(tcp_results)/len(tcp_results):.2f} ms")
+    # if udp_results:
+    #     print(f"UDP平均延迟: {sum(udp_results)/len(udp_results):.2f} ms")
+
+if __name__ == "__main__":
+    run_single_test()

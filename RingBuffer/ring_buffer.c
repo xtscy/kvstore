@@ -176,7 +176,7 @@ uint8_t RB_Read_String(ring_buffer *rb_handle, uint8_t *output_addr, uint32_t re
             Read_size_a = read_Length ;
             printf("read_length:%d\n", read_Length);
             memcpy(output_addr, rb_handle->array_addr + rb_handle->head, Read_size_a);
-            printf("output_addr:%u\n", *(uint32_t*)output_addr);
+            printf("output_addr:%u\b", output_addr);
             rb_handle->Length -= read_Length ;//记录剩余数据量
             rb_handle->head += Read_size_a ;//重新定位头指针位置
             if(rb_handle->head == rb_handle->max_Length)
