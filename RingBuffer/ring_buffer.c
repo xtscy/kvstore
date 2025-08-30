@@ -41,7 +41,7 @@ uint8_t RB_Delete(ring_buffer *rb_handle, uint32_t Length)
         return RING_BUFFER_ERROR ;//已储存的数据量小于需删除的数据量
     else
     {
-        if((rb_handle->head + Length) >= rb_handle->max_Length)
+        if((rb_handle->head + Length) >= rb_handle->max_Length)//* 如果当前数据足够删除，那么判断是否需要环绕，如果head+要偏移的总数 >= max_length那么说明需要环绕
             rb_handle->head = Length - (rb_handle->max_Length - rb_handle->head);
         else
             rb_handle->head += Length ;    //头指针向前推进，抛弃数据

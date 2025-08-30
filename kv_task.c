@@ -3,7 +3,7 @@
 #include <poll.h>
 
 char* order[] = {"SET", "GET", "DEL", "INCR", "DECR"};
-
+s
 extern ssize_t send(int fd, const void *buf, size_t len, int flags);
 
 //? 返回值为解析到的token个数
@@ -12,12 +12,12 @@ int split_data(connection_t *c) {
     char *buf = c->pkt_data;
     int count = 0;
     char *token = strtok(buf, " ");
-    while (token != NULL) {
-        c->tokens[count++] = token; 
+    while (token != NULL) {//int a , &a =pa, (*pa) = a, (*pa).fd = pa->fd 
+        c->tokens[count++] = token; //(*c).token[]
         token = strtok(NULL, " ");
     }
     return count;
-}
+}                                                                                                                                                                       
 
 int token_to_order(char *buf) {
     //* 遍历数组，找到对应的
@@ -37,7 +37,7 @@ int Process_Task(connection_t *c) {
         // poll(NULL, NULL, 1000);
         printf("当前pkt_data不存在token\n");
         return -1;
-    }
+    }//SET KEY VALUE
     int ret = token_to_order(c->tokens[0]);
     if (ret == -1) {
         printf("当前token没有对应的order\n");
@@ -71,7 +71,7 @@ int Process_Task(connection_t *c) {
                 //* 存在，先把值转换成字符串
                 //* 通过类型判断，如果是字符串直接发送，如果是数值类型则转换
                 if (c->kv_array[pos].type == TYPE_INTEGER) {
-                    char s_buf[16] = {0};
+                    char s_buf[16] = {0};//解引用,就是把拿到指针指向的对象,int a = 10 int *pt = &a , *pt = a = 10,
                     sprintf(s_buf, "%ld", *(long*)c->kv_array[pos].value);
                     send(c->fd, s_buf, strlen(s_buf), 0);
                     printf("send:%s\n", s_buf);
