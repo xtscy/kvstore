@@ -3,7 +3,7 @@
 
 
 
-uint8_t RB_Init(ring_buffer *rb_handle, uint32_t buffer_size)
+uint8_t RB_Init(lock_free_ring_buffer *rb_handle, uint32_t buffer_size)
 {
     //缓冲区数组空间必须大于2且小于数据类型最大值
     //* 即缓冲区空间不能太小，也不能太大
@@ -12,7 +12,7 @@ uint8_t RB_Init(ring_buffer *rb_handle, uint32_t buffer_size)
     }
 
     //* 初始化head,tail    
-    atomic_init(&rb_handle->state, 0);
+    atomic_store(&rb_handle->state, 0);
 
     //* 开辟数组空间    
     rb_handle->array_addr = (uint8_t*)malloc(buffer_size);
@@ -22,7 +22,7 @@ uint8_t RB_Init(ring_buffer *rb_handle, uint32_t buffer_size)
 
 //* 使用乐观并发控制来保证强一致性
 
-uint8_t RB_Delete(ring_buffer *rb_handle, uint32_t Length)
+uint8_t RB_Delete(lock_free_ring_buffer *rb_handle, uint32_t Length)
 {
     if (Length == 0) return RING_BUFFER_SUCCESS ;
     uint64_t old_state = 0, new_state = 0;
@@ -60,7 +60,7 @@ uint8_t RB_Delete(ring_buffer *rb_handle, uint32_t Length)
 
 
 //* 预留空间再拷贝
-uint8_t RB_Write_String(ring_buffer *rb_handle, uint8_t *input_addr, uint32_t write_Length)
+uint8_t RB_Write_String(lock_free_ring_buffer *rb_handle, uint8_t *input_addr, uint32_t write_Length)
 {
     if (write_Length == 0) {
         return RING_BUFFER_SUCCESS ;
@@ -102,7 +102,7 @@ uint8_t RB_Write_String(ring_buffer *rb_handle, uint8_t *input_addr, uint32_t wr
 }
 
 //* 先读取数据再CAS判断，如果成功再返回函数，否则重新读取数据，每次有1个线程返回成功
-uint8_t RB_Read_String(ring_buffer *rb_handle, uint8_t *output_addr, uint32_t read_Length) {
+uint8_t RB_Read_String(lock_free_ring_buffer *rb_handle, uint8_t *output_addr, uint32_t read_Length) {
 
     uint64_t old_state = 0, new_state = 0;
     old_state = atomic_load(&rb_handle->state);
@@ -138,7 +138,7 @@ uint8_t RB_Read_String(ring_buffer *rb_handle, uint8_t *output_addr, uint32_t re
 
 //* GET 大小实现为粗略值不使用CAS
 
-uint32_t RB_Get_Length(ring_buffer *rb_handle) {
+uint32_t RB_Get_Length(lock_free_ring_buffer *rb_handle) {
     uint64_t old_state = atomic_load(&rb_handle->state);
     uint32_t old_head = GET_HEAD(old_state);
     uint32_t old_tail = GET_TAIL(old_state);
@@ -149,7 +149,7 @@ uint32_t RB_Get_Length(ring_buffer *rb_handle) {
     }
 }
 
-uint32_t RB_Get_FreeSize(ring_buffer *rb_handle) {
+uint32_t RB_Get_FreeSize(lock_free_ring_buffer *rb_handle) {
 
     uint64_t old_state = atomic_load(&rb_handle->state);
     uint32_t old_head = GET_HEAD(old_state);
