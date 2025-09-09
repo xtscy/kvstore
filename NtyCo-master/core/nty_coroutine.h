@@ -65,7 +65,7 @@
 #include <sys/time.h>
 #include <sys/mman.h>
 #include <netinet/tcp.h>
-
+#include <sys/socket.h>
 #ifdef _USE_UCONTEXT
 #include <ucontext.h>
 #endif

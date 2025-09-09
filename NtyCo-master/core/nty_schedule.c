@@ -84,8 +84,8 @@ RB_GENERATE(_nty_coroutine_rbtree_wait, _nty_coroutine, wait_node, nty_coroutine
 
 
 
-void nty_schedule_sched_sleepdown(nty_coroutine *co, uint64_t msecs) {
-	uint64_t usecs = msecs * 1000u;
+void nty_schedule_sched_sleepdown(nty_coroutine *co, unsigned float msecs) {
+	uint64_t usecs = (uint64_t)(msecs * 1000u);
 
 	nty_coroutine *co_tmp = RB_FIND(_nty_coroutine_rbtree_sleep, &co->sched->sleeping, co);
 	if (co_tmp != NULL) {
@@ -94,7 +94,7 @@ void nty_schedule_sched_sleepdown(nty_coroutine *co, uint64_t msecs) {
 
 	co->sleep_usecs = nty_coroutine_diff_usecs(co->sched->birth, nty_coroutine_usec_now()) + usecs;
 
-	while (msecs) {
+	while (usecs) {
 		co_tmp = RB_INSERT(_nty_coroutine_rbtree_sleep, &co->sched->sleeping, co);
 		if (co_tmp) {
 			printf("1111 sleep_usecs %"PRIu64"\n", co->sleep_usecs);
@@ -157,9 +157,9 @@ void nty_schedule_sched_wait(nty_coroutine *co, int fd, unsigned short events, u
 	}
 
 	if (events & POLLIN) {
-		co->status |= NTY_COROUTINE_STATUS_WAIT_READ;
+		co->status |= BIT(NTY_COROUTINE_STATUS_WAIT_READ);
 	} else if (events & POLLOUT) {
-		co->status |= NTY_COROUTINE_STATUS_WAIT_WRITE;
+		co->status |= BIT(NTY_COROUTINE_STATUS_WAIT_WRITE);
 	} else {
 		printf("events : %d\n", events);
 		assert(0);
@@ -173,7 +173,7 @@ void nty_schedule_sched_wait(nty_coroutine *co, int fd, unsigned short events, u
 
 	//printf("timeout --> %"PRIu64"\n", timeout);
 	if (timeout == 1) return ; //Error
-
+	
 	nty_schedule_sched_sleepdown(co, timeout);
 	
 }
@@ -339,7 +339,7 @@ void nty_schedule_run(void) {
 			nty_coroutine_resume(co);
 			if (co == last_co_ready) break;
 		}
-
+饿vs's
 		// 3. wait rbtree
 		nty_schedule_epoll(sched);
 		while (sched->num_new_events) {

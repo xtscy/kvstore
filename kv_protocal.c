@@ -1,7 +1,21 @@
 
+                    //* 这里未成功放入，那么有一个策略就是重新添加到当前连接的ringbuf中，然后把上面malloc的全部都free
+                    //* 那么这里如果直接重新添加，就是添加到环形队列的末尾,由于是从当前连接取出来的，所以必然能够重新插入
+                    //* 这里为了保证，把当前任务push进去。则如果当前线程队列不足就换其他线程。
+                    //* 如果所有线程都没有空间，那么设计一个全局任务队列。
+                    //* 把不能放入的任务放到该全局队列。该全局队列在内存池中申请，这里先设计为malloc。
+                    //* 该全局队列用无锁环形队列，因为是共享的，考虑线程安全性.
+                    //* 如果当前全局任务队列为满，那么再去开辟一个新的全局任务队列。这里后续优化可能涉及到某个时刻可能
+                    //* 会有巨大的请求数据，导致开辟了许多全局任务队列，但是当过了这个峰值。那么就会有多个冗余的全局队列占用内存
+                    //* 那么优化就可以实现对于一个任务都没有的冗余队列的清理。设置一个一般情况下，最多有几个冗余队列。
+                    //* 然后对于超出数量的队列，进行清理.当然这里清理也有策略，可以1个1个的清理这样可以做到
+                    //* 在时间段相差不大的情况下，又有巨大并发数据，那么向内存池申请的次数就会减少，如果内存池不够，向系统申请就会减少
+
 #include "kv_protocal.h"
 #include <string.h>
 #include <poll.h>
+#include "threadpool/threadpool.h"
+#include "./NtyCo-master/core/nty_coroutine.h"
 
 uint32_t read_to_ring(connection_t *c)
 {
@@ -32,12 +46,14 @@ void Process_Message(connection_t *c)
         else
         {
             //* 静态缓存区存在数据那么继续处理
-            printf("read_to_ring之前current KEY0:->%s\n", (char*)c->kv_array[0].key);
+            // printf("read_to_ring之前current KEY0:->%s\n", (char*)c->kv_array[0].key);
             read_to_ring(c);
-            printf("read_to_ring之后current KEY0:->%s\n", (char*)c->kv_array[0].key);
+            // printf("read_to_ring之后current KEY0:->%s\n", (char*)c->kv_array[0].key);
             //* 当把数据读到环形缓冲区后，在该环形缓冲区中处理数据
+            //* 这里设计成，让处理函数内部来实现保证正确写入
+            //* 除非是真的任务在哪里都放不下了，那么
             Process_Protocal(c);
-            printf("Process_Protocal之后current KEY0:->%s\n", (char*)c->kv_array[0].key);
+            // printf("Process_Protocal之后current KEY0:->%s\n", (char*)c->kv_array[0].key);
 
         }
     }
@@ -56,8 +72,11 @@ void Process_Message(connection_t *c)
 //? 方法1是直接丢弃前面的请求
 //? 如果真的是丢包那么可以再设计一个包缓存，但是映射关系很难用某种方法去维护
 
+void smart_backoff_strategy() {
 
-void Process_Protocal(connection_t *c)
+}
+
+int Process_Protocal(connection_t *c)
 {
     //* 依次读到每个数据包，这里解决粘包和拆包问题
     uint32_t size = RB_Get_Length(&c->read_rb);
@@ -69,7 +88,7 @@ void Process_Protocal(connection_t *c)
             //* 处理头部,可是头部的包也可能被拆分，如果不足4字节直接退出处理
             if (c->read_rb.Length < 4) {
                 printf("环形缓冲区header数据不足\n");
-                return;
+                return -3;//* -3header未读取
             } else {
                 printf("read header1, header:%u\n", c->current_header);
                 //* 由于判断了长度有效，所以必然返回成功，除非出现了非代码错误
@@ -78,25 +97,108 @@ void Process_Protocal(connection_t *c)
                 c->state = PARSE_STATE_BODY;
             }
         } else if (c->state == PARSE_STATE_BODY) {
+            int sign = 0;
             if (c->read_rb.Length < c->current_header) {
                 // poll(NULL,NULL,5000);
                 printf("环形缓冲区Body数据不足,回到上层再次从缓存区中读数据");
-                return;
+                return -4;//* boby长度不足返回-4
             } else {
-                printf("read_rb.Length:%u, current_head:%u\n", c->read_rb.Length, c->current_header);
-                memset(c->pkt_data, 0, sizeof(RING_BUF_SIZE));
-                RB_Read_String(&c->read_rb, c->pkt_data, c->current_header);
-                printf("处理pocket:%s\n", c->pkt_data);
-                if(Process_Task(c) == 0) {
-                    printf("current KEY0:->%s\n", (char*)c->kv_array[0].key);
-                    printf("1个完整的请求被处理\n");
+                //* 如果读到BODY，那么去调用调度器，写入某个线程的队列中
+                //* 这里就不再是调用Process_Task
+                //* 而是调用调度器，和写入线程任务队列
+                //* 这里封装函数就是线程安全的，并且一定会加1
+                //* 这里有一个策略是无限循环，直到input到任务队列，然后会break
+                //* 但是这时该协程就会一直占用，直到1个时间轮
+                //* 目前是如果遍历了1遍，没有线程，那么使用共享任务队列
+                //* 这里先就让调度器+1,循环的遍历，不改变原子变量
+                //* 如果为了强轮询一致性，那么就需要持续的改变原子变量
+                //* 这里其实如果说不改变原子，那么当前线程满了后，这个线程push不进去，另外一个线程的原子变量指向这个照样push
+                task_t *task = (task_t*)malloc(sizeof(task_t));
+                if (task != NULL) {
+                    task->conn_fd = c->fd;
+                    task->payload_len = c->current_header;
+                    char *temp_payload = malloc(sizeof(c->current_header));
+                    if (temp_payload != NULL) {
+                        task->payload = temp_payload;
+                        
+                        RB_Read_String(&c->read_rb, task->payload, task->payload_len);
+                        // if (LK_RB_Write_Task(&g_thread_pool.workers[worker_idx], task, 1) == RING_BUFFER_SUCCESS) {
+                        //     printf("task input success\n");
+                        //     break;
+                        // }
+                    } else {
+                        printf("temp_payload malloc failed\n");
+                        exit(-1);
+                    }
 
-                    memset(c->pkt_data, 0, RING_BUF_SIZE+1);
-                    printf("current KEY0:->%s\n", (char*)c->kv_array[0].key);
-
+                    //* LK_RB_Write_Task写入 失败,free掉temp_payload
+                    // free(temp_payload);
+                } else {
+                    //* malloc 失败都直接退出
+                    printf("task malloc failed\n");
+                    exit(-1);
                 }
-                c->state = PARSE_STATE_HEADER;
-                c->current_header = 0;
+                //* task开辟成功
+                uint64_t usecd = INITIAL_BACKOFF_US;
+                nty_schedule *sched = nty_coroutine_get_sched();
+                if (sched == NULL) {
+                    printf("scheduler not exsist!\n");
+                    return -1;
+                }
+                nty_coroutine *co = sched->curr_thread;
+               double backoff_us = INITIAL_BACKOFF_US;
+
+                while (1) {
+
+                    //* 依次遍历线程
+                    for (int i = 0; i < g_thread_pool.worker_count; i++) {
+                    // g_thread_pool.workers[worker_idx]
+                        int worker_idx = g_thread_pool.scheduler_strategy();
+                        if (LK_RB_Write_Task(&g_thread_pool.workers[worker_idx].queue, task, 1) == RING_BUFFER_SUCCESS) {
+                            return 0;//* input success, return 0
+                        }
+                    }
+                    //* 线程的任务队列不足，那么去到全局环形队列
+                    //* 这里有多个全局环形队列，获取原子变量依次去遍历，都没有就考虑开辟新的全局队列
+                    //* 如果队列已达上限，那么使用智能退避延迟策略
+
+                    //* 这里先设计成/2，后续可以优化成更智能的策略
+                    for (int i = 0; i < g_thread_pool.current_queue_num / 2; i++) {
+                        int next_queue = atomic_fetch_add(&g_thread_pool.produce_next_queue_idx, 1) % g_thread_pool.current_queue_num;
+                        if (LK_RB_Write_Task(&g_thread_pool.global_queue[next_queue], task, 1) == RING_BUFFER_SUCCESS) {
+                            printf("放入全局队列");
+                            return 0;
+                        }
+                    }
+
+                    //? 如果连全局都放不下，那么就使用智能退避
+                    //? 这里是协程框架所以直接用yield的而非sleep
+                    //?
+
+                    nty_schedule_sched_sleepdown(co, backoff_us);
+                    backoff_us *= 2;
+                }
+                //* 重新把payload放入当前连接的ring_buf
+                //* 这里可能当前线程队列已满，返回ERROR
+                //* 那么
+                //* 写入任务队列后，线程拿取任务再执行
+
+
+
+              //  // printf("read_rb.Length:%u, current_head:%u\n", c->read_rb.Length, c->current_header);
+              //  // memset(c->pkt_data, 0, sizeof(RING_BUF_SIZE));
+              //  // RB_Read_String(&c->read_rb, c->pkt_data, c->current_header);
+              //  // printf("处理pocket:%s\n", c->pkt_data);
+              //  // if(Process_Task(c) == 0) {
+              //  //     printf("current KEY0:->%s\n", (char*)c->kv_array[0].key);
+              //  //     printf("1个完整的请求被处理\n");
+//
+              //  //     memset(c->pkt_data, 0, RING_BUF_SIZE+1);
+              //  //     printf("current KEY0:->%s\n", (char*)c->kv_array[0].key);
+//
+              //  // }
+              //  // c->state = PARSE_STATE_HEADER;
+              //  // c->current_header = 0;
             }      
         }
     }

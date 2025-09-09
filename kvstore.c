@@ -1,7 +1,7 @@
 #include "kv_server.h"
 #include <stdio.h>
 #include <stdlib.h>
-
+#include <unistd.h>
 
 #if UseNet == Reactor
 int kv_request(struct conn *c) {
@@ -16,20 +16,16 @@ int kv_response(struct conn *c) {
 }
 #endif
 
+// typedef kv_type_s kv_type_t; 
 
+
+
+
+// typedef struct kv_type_s kv_type_t;
+extern struct kv_type_s *g_kv_array;//* 等会编译的时候，两种情况都尝试一下
 
 
 int main(int argc, char* argv[]) {
-
-
-    Thread_Pool_Init(5);
-    Thread_Pool_Run();
-
-
-
-
-
-
 
 
     // if (argc != 2) return -1;
@@ -41,6 +37,9 @@ int main(int argc, char* argv[]) {
     //     Reactor_Entry(port);
     // }
 
+    Thread_Pool_Init(5);
+    Thread_Pool_Run();
 
+    sleep(1000);
     return 0;
 }

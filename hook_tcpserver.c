@@ -1,14 +1,17 @@
 
 
-#include "nty_coroutine.h"
+#include "./NtyCo-master/core/nty_coroutine.h"
 
 #include <arpa/inet.h>
 
 
 #include "kv_protocal.h"
+
+
+
 void server_reader(void *arg) {
 	int fd = *(int *)arg;
-	uint32_t read_byte = 0;
+	// uint32_t read_byte = 0;
 	int ret = 0;
 //* 在这里初始化环形缓冲区,并且用一个结构体来描述当前连接,这是为了解决粘包和分包问题
 //* 编译时初始化，性能更好
@@ -21,7 +24,7 @@ void server_reader(void *arg) {
 		// read_byte = RB_Get_FreeSize(&c.read_rb) < READ_CACHE_SIZE ? RB_Get_FreeSize(&c.read_rb) : READ_CACHE_SIZE;
 		//* 这里尽可能多的读到环形缓冲区，然后在依次放入环形缓冲区处理消息
 		//* 可以用一个循环，如果缓冲区读完了，那就继续从临时缓冲区拿。缓冲区读完则跳出处理，来到外层继续下一个循环。
-		printf("kv_array[0]:key->%s\n", (char*)c.kv_array->key);
+		// printf("kv_array[0]:key->%s\n", (char*)c.kv_array->key);
 		printf("wait recv\n");
 		ret = recv(fd, c.read_cache.cache, READ_CACHE_SIZE, 0);
 		if (ret > 0) {
@@ -81,17 +84,19 @@ void server(void *arg) {
 }
 
 
-
+kv_type_t* g_kv_array = NULL;
 
 
 int NtyCo_Entry(unsigned short p) {
-	int port = p;
 
+	g_kv_array = (kv_type_t*)malloc(sizeof(kv_type_t) * KV_ARRAY_SIZE);
+	int port = p;
+	
 	nty_coroutine *co = NULL;
 	nty_coroutine_create(&co, server, &port);
 
 	nty_schedule_run();
-
+	return 0;
 }
 
 

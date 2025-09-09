@@ -2,6 +2,10 @@
 #include <errno.h>
 
 
+extern kv_type_t* g_kv_array;
+
+
+
 int is_integer(const char *str) {
     printf("str:%s\n", str);
     if (str == NULL || *str == '\0') {
@@ -60,20 +64,20 @@ int kv_free(void *p) {
 }
 
 //*返回0找到有效key，没找到返回-1
-int KV_GET(connection_t *c, char *k, int *pos) {
+int KV_GET(char *k, int *pos) {
     printf("3\n");
     printf("GEt key:-> %s\n", k);
-    printf("current key:->%s\n", (char*)c->kv_array[0].key);
+    // printf("current key:->%s\n", (char*)c->kv_array[0].key);
     for (int i = 0; i < KV_ARRAY_SIZE; i++) {
-        if (c->kv_array[i].key != NULL){
-            if (strcmp(c->kv_array[i].key, k) == 0) {
+        if (g_kv_array[i].key != NULL){
+            if (strcmp(g_kv_array[i].key, k) == 0) {
                 printf("4\n");
-                if (c->kv_array[i].value == NULL) {
-                    if(kv_free(c->kv_array[i].key) != 0) {
+                if (g_kv_array[i].value == NULL) {
+                    if(kv_free(g_kv_array[i].key) != 0) {
                         printf("kv_free failed\n");
                         exit(-1);
                     }
-                    c->kv_array[i].key = NULL;
+                    g_kv_array[i].key = NULL;
                 } else {
                     *pos = i;
                     return 0;
@@ -90,7 +94,7 @@ int KV_GET(connection_t *c, char *k, int *pos) {
 /// @param k 
 /// @param v 
 /// @return 成功返回0，key或者value非法返回-1
-int KV_SET(connection_t *c, char *k, char *v) {
+int KV_SET(char *k, char *v) {
 
     //* malloc值到KV_TYPE中，值得不同，类型不同
     //* 分为字符串类型和数值类型，这里数值类型直接用double
@@ -112,7 +116,7 @@ int KV_SET(connection_t *c, char *k, char *v) {
         KV_MALLOC(long, 1, &lp);
         *lp = value;
         printf("2\n");
-        if(KV_GET(c, k, &pos) == 0) {
+        if(KV_GET(k, &pos) == 0) {
             printf("当前key存在,只更改value");
             if (rv != NULL) {
                 if(kv_free(rv) != 0) {
@@ -120,8 +124,9 @@ int KV_SET(connection_t *c, char *k, char *v) {
                     exit(-1);
                 }
             }
-            c->kv_array[pos].value = lp;
-            c->kv_array[pos].type = TYPE_INTEGER;
+            
+            // c->kv_array[pos].value = lp;
+            // c->kv_array[pos].type = TYPE_INTEGER;
             return 0;
         }
         //* key不存在
@@ -134,10 +139,11 @@ int KV_SET(connection_t *c, char *k, char *v) {
         strcpy(sp, k);
         printf("sp->:%s\n", sp);
         for (int i = 0; i < KV_ARRAY_SIZE; i++) {
-            if (c->kv_array[i].key == NULL) {
-                c->kv_array[i].key = (void*)sp;
-                c->kv_array[i].type = TYPE_INTEGER;
-                c->kv_array[i].value = lp;
+            
+            if (g_kv_array[i].key == NULL) {
+                g_kv_array[i].key = (void*)sp;
+                g_kv_array[i].type = TYPE_INTEGER;
+                g_kv_array[i].value = lp;
                 printf("键值写入成功,pos: %d\n", i);
                 return 0;
             }
@@ -155,12 +161,12 @@ int KV_SET(connection_t *c, char *k, char *v) {
 }
 
 
-int KV_DEL(connection_t *c, char *k) {
+int KV_DEL(char *k) {
     printf("KV_DEL\n");
 }
-int KV_INCR(connection_t *c, char *k) {
+int KV_INCR(char *k) {
     printf("KV_INCR\n");
 }
-int KV_DECR(connection_t *c, char *k) {
+int KV_DECR(char *k) {
     printf("KV_DECR\n");
 }

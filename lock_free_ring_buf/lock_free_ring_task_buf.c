@@ -1,9 +1,9 @@
-#include "unlock_ringbuf.h"
+#include "lock_free_ring_buf.h"
 
 
 
 
-uint8_t RB_Init(lock_free_ring_buffer *rb_handle, uint32_t buffer_size)
+uint8_t LK_RB_Init(lock_free_ring_buffer *rb_handle, uint32_t buffer_size)
 {
     //缓冲区数组空间必须大于2且小于数据类型最大值
     //* 即缓冲区空间不能太小，也不能太大
@@ -15,14 +15,18 @@ uint8_t RB_Init(lock_free_ring_buffer *rb_handle, uint32_t buffer_size)
     atomic_store(&rb_handle->state, 0);
 
     //* 开辟数组空间    
-    rb_handle->array_addr = (uint8_t*)malloc(buffer_size);
+    rb_handle->task_array = (task_t*)malloc(buffer_size * sizeof(task_t));
+    if (rb_handle->task_array == NULL) {
+        printf("LK_RB malloc failed\n");
+        return RING_BUFFER_ERROR;
+    }
     rb_handle->max_Length = buffer_size;
     return RING_BUFFER_SUCCESS ; //缓冲区初始化成功
 }
 
 //* 使用乐观并发控制来保证强一致性
 
-uint8_t RB_Delete(lock_free_ring_buffer *rb_handle, uint32_t Length)
+uint8_t LK_RB_Delete(lock_free_ring_buffer *rb_handle, uint32_t Length)
 {
     if (Length == 0) return RING_BUFFER_SUCCESS ;
     uint64_t old_state = 0, new_state = 0;
@@ -60,7 +64,7 @@ uint8_t RB_Delete(lock_free_ring_buffer *rb_handle, uint32_t Length)
 
 
 //* 预留空间再拷贝
-uint8_t RB_Write_String(lock_free_ring_buffer *rb_handle, uint8_t *input_addr, uint32_t write_Length)
+uint8_t LK_RB_Write_Task(lock_free_ring_buffer *rb_handle, task_t *input_addr, uint32_t write_Length)
 {
     if (write_Length == 0) {
         return RING_BUFFER_SUCCESS ;
@@ -95,14 +99,14 @@ uint8_t RB_Write_String(lock_free_ring_buffer *rb_handle, uint8_t *input_addr, u
         
     } while(atomic_compare_exchange_strong(&rb_handle->state, &old_state, new_state));
 
-    memcpy(&rb_handle->array_addr[old_tail], input_addr, write_Length);
+    memcpy(&rb_handle->task_array[old_tail], input_addr, write_Length * sizeof(task_t));
     
     return RING_BUFFER_SUCCESS;
 
 }
 
 //* 先读取数据再CAS判断，如果成功再返回函数，否则重新读取数据，每次有1个线程返回成功
-uint8_t RB_Read_String(lock_free_ring_buffer *rb_handle, uint8_t *output_addr, uint32_t read_Length) {
+uint8_t LK_RB_Read_Task(lock_free_ring_buffer *rb_handle, task_t *output_addr, uint32_t read_Length) {
 
     uint64_t old_state = 0, new_state = 0;
     old_state = atomic_load(&rb_handle->state);
@@ -127,18 +131,18 @@ uint8_t RB_Read_String(lock_free_ring_buffer *rb_handle, uint8_t *output_addr, u
         } else {
             new_head = read_Length - rb_handle->max_Length + old_head;
         }
+        memcpy(output_addr, &rb_handle->task_array[old_head], read_Length * sizeof(task_t));
         new_state = MAKE_STATE(new_head, old_tail);
     } while (atomic_compare_exchange_strong(&rb_handle->state, &old_state, new_state)) ;
 
-    memcpy(output_addr, &rb_handle->array_addr[old_head], read_Length);
 
     return RING_BUFFER_SUCCESS ;
     
 }
 
-//* GET 大小实现为粗略值不使用CAS
+//* GET 大小实现为粗略旧值不使用CAS
 
-uint32_t RB_Get_Length(lock_free_ring_buffer *rb_handle) {
+uint32_t LK_RB_Get_Length(lock_free_ring_buffer *rb_handle) {
     uint64_t old_state = atomic_load(&rb_handle->state);
     uint32_t old_head = GET_HEAD(old_state);
     uint32_t old_tail = GET_TAIL(old_state);
@@ -149,11 +153,11 @@ uint32_t RB_Get_Length(lock_free_ring_buffer *rb_handle) {
     }
 }
 
-uint32_t RB_Get_FreeSize(lock_free_ring_buffer *rb_handle) {
+uint32_t LK_RB_Get_FreeSize(lock_free_ring_buffer *rb_handle) {
 
     uint64_t old_state = atomic_load(&rb_handle->state);
     uint32_t old_head = GET_HEAD(old_state);
-    uint32_t old_tail = GET_TAIL(old_tail);
+    uint32_t old_tail = GET_TAIL(old_state);
     uint32_t num = 0;
 
     
