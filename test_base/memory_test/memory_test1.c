@@ -7,15 +7,15 @@
 
 fixed_size_pool_t *g_mem_pool = NULL;
 
-#define MEMORY_SIZE 50
+#define MEMORY_SIZE 15
 
 
 int main() {
-    //* 每个块大小为64
-    g_mem_pool = fixed_pool_create(MEMORY_SIZE, 5);
-    char *block_data = (char*)fixed_pool_alloc(g_mem_pool);
+    g_mem_pool = fixed_pool_create(MEMORY_SIZE, 3000000);
+    // char *block_data = (char*)fixed_pool_alloc(g_mem_pool);
     fixed_pool_stats(g_mem_pool);
     char *data = (char*)fixed_pool_alloc(g_mem_pool);
+    fixed_pool_stats(g_mem_pool);
     memset(data, 0, MEMORY_SIZE);
     char buf[64] = {0};
     snprintf(buf, sizeof(buf), "hello world\n");

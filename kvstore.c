@@ -23,9 +23,14 @@ int kv_response(struct conn *c) {
 
 // typedef struct kv_type_s kv_type_t;
 extern struct kv_type_s *g_kv_array;//* 等会编译的时候，两种情况都尝试一下
-
+fixed_size_pool_t *small_kv_pool = NULL;
+// fixed_size_pool_t *medium_value_pool = NULL;
+// fixed_size_pool_t *large_value_pool = NULL;
 
 int main(int argc, char* argv[]) {
+    // size_t size = sizeof(kv_type_s);
+    // fixed_pool_create()
+
 
 
     // if (argc != 2) return -1;

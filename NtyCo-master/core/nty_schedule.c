@@ -339,7 +339,7 @@ void nty_schedule_run(void) {
 			nty_coroutine_resume(co);
 			if (co == last_co_ready) break;
 		}
-饿vs's
+
 		// 3. wait rbtree
 		nty_schedule_epoll(sched);
 		while (sched->num_new_events) {

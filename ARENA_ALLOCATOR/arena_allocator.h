@@ -1,0 +1,60 @@
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdatomic.h>
+#include <stdbool.h>
+#include "../Sequence_lock/Sequence_lock.h"
+
+typedef struct stage_s {
+    
+    sequence_lock_t lock;
+    atomic_size_t used;
+    size_t capacity;
+    // refernce_count 用于判断是否可reset
+    atomic_size_t reference_count;
+    struct stage_s *next;
+    uint8_t init_pos[];
+} stage_t;
+
+typedef struct stage_allocator_s {
+
+    stage_t *head;
+    atomic_size_t stage_total;
+    // 也可以不要current，这里是不想重新从链表头开始遍历，所以记录
+    stage_t *current;
+
+} stage_allocator_t;
+
+// 这里对分配的内存块也进行了封装
+
+typedef struct block_alloc_s {
+
+    uint8_t *ptr;
+    size_t size;
+    // 这里由于stage有reference_count所以，还需要一个指向stage的指针
+    // 当当前块不用时，可以调用该stage的reference_count--
+    stage_t *stage;
+} block_alloc_t;
+
+//create stage
+extern stage_t *stage_create(size_t);
+// alloc bytes from stage
+extern block_alloc_t* stage_alloc(size_t, stage_t*);
+// destroy stage
+extern bool stage_destroy(stage_t*);
+// decrement reference of stage
+extern bool stage_deref(stage_t*);
+// reset stage memory
+extern bool stage_reset(stage_t*);
+
+
+
+
+
+
+
+
+
+

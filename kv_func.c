@@ -64,6 +64,8 @@ int kv_free(void *p) {
 }
 
 //*返回0找到有效key，没找到返回-1
+// 这里使用内存池，那么就没有数组访问，而是使用alloc申请块，然后放入块中
+// 这里GET某个key，也是去到内存池中查找
 int KV_GET(char *k, int *pos) {
     printf("3\n");
     printf("GEt key:-> %s\n", k);

@@ -7,7 +7,7 @@
 #include <string.h>
 #include "RingBuffer/ring_buffer.h"
 #include "./lock_free_ring_buf/lock_free_ring_buf.h"
-
+#include "memory_pool/memory_pool.h"
 
 #define READ_CACHE_SIZE 1024*16
 #define RING_BUF_SIZE 1000
@@ -36,13 +36,23 @@ typedef enum {
     PARSE_STATE_BODY
 } read_state_t;
 
-typedef struct kv_type_s{
-    //* 这里用指针，然后直接在堆上存放数据
-    void* key;
-    void* value;
+// typedef struct kv_type_s{
+//     //* 这里用指针，然后直接在堆上存放数据
+//     void* key;
+//     void* value;
+//     value_type_t type;
+// } kv_type_t;
+
+// 对缓存更友好
+// 键和值都存储到柔性数组data中
+typedef struct {
     value_type_t type;
+    uint16_t key_len;
+    uint16_t value_len;
+    char data[];  // 柔性数组，存储key+value
 } kv_type_t;
 
+// 只需要一个支持变长分配的内存池
 
 typedef struct connection_s {
     int fd;
@@ -51,7 +61,7 @@ typedef struct connection_s {
     // char* tokens[16];//* 存储解析到的token
     // char pkt_data[RING_BUF_SIZE + 1];//* 多一个终止符
     //* 这里只需要放入read_rb.然后放入线程的任务队列中
-    ring_buffer read_rb;     // 读环形缓冲区，在该缓冲区处理包
+    ring_buffer read_rb;     // 读环形缓冲区，在该缓冲区处理包  
     read_cache_t read_cache;   // 数据缓冲区，数据最先放在read_cache
     read_state_t state;
     message_header_t current_header;

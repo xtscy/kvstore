@@ -73,7 +73,8 @@ uint8_t Thread_Pool_Run() {
 }
 
 void* Worker_Func(void* arg) {
-    /* 线程入口函数 */
+    /* 
+    线程入口函数 */
     worker_t * p_worker = (worker_t*)arg;
 
     printf("run thread tid:%lu, thread wid:%d\n", p_worker->thread_id, p_worker->worker_id);
@@ -107,7 +108,11 @@ void* Worker_Func(void* arg) {
             } else if (ret == -2) {
                 printf("当前token没有对应的order\n");
             }
+        
             continue;
+
+
+            
         } else {
             //* 当前task拿取失败
             printf("thread:>%d, task 拿取失败,go sleep(5)\n",p_worker->worker_id);

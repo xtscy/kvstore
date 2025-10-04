@@ -1,9 +1,7 @@
 
-
 #include "./NtyCo-master/core/nty_coroutine.h"
 
 #include <arpa/inet.h>
-
 
 #include "kv_protocal.h"
 
@@ -85,12 +83,23 @@ void server(void *arg) {
 
 
 kv_type_t* g_kv_array = NULL;
+extern fixed_size_pool_t *small_kv_pool;
+// extern fixed_size_pool_t *medium_value_pool;
+// extern fixed_size_pool_t *large_value_pool;
 
+// 开辟多个小块因为指令随机到来，
+
+// 
 
 int NtyCo_Entry(unsigned short p) {
+	size_t size = sizeof(kv_type_t);
+
+	small_kv_pool = fixed_pool_create(SMALL_SIZE, 3000000);
+	// small_value_pool = fixed_pool_create(MEDIUM_SIZE, 3000000);
+	// 当存储值时，才去alloc分配块，并且alloc时把
 
 	g_kv_array = (kv_type_t*)malloc(sizeof(kv_type_t) * KV_ARRAY_SIZE);
-	int port = p;
+	int port = 5678;
 	
 	nty_coroutine *co = NULL;
 	nty_coroutine_create(&co, server, &port);
