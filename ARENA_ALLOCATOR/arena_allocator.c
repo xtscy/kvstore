@@ -1,6 +1,6 @@
 #include "arena_allocator.h"
 
-#define STAGE_DATA_SIZE 2048
+
 
 stage_allocator_t *stage_allocator = NULL;
 size_t block_size = sizeof(block_alloc_t);
@@ -65,7 +65,7 @@ block_alloc_t *stage_alloc(size_t size, stage_t *stage) {
         }
 
         // 进行写操作，先获取写锁, 如果true那么获取写锁成功，否则如果为false获取失败
-        if (atomic_compare_exchange_explicit(&stage->lock.seq_lock, &seq, seq + 1, 
+        if (atomic_compare_exchange_weak_explicit(&stage->lock.seq_lock, &seq, seq + 1, 
             memory_order_acquire, memory_order_relaxed)) {
             // 进行写操作,更改new_used
             atomic_store_explicit(&stage->used, new_used, memory_order_relaxed);
@@ -77,7 +77,7 @@ block_alloc_t *stage_alloc(size_t size, stage_t *stage) {
         }
     } while(true);
 
-    block_alloc_t *ret = stage->init_pos + current_used;
+    block_alloc_t *ret = (block_alloc_t *)(stage->init_pos + current_used);
     ret->ptr = stage->init_pos + current_used + sizeof(block_alloc_t);
     ret->size = size;
     ret->stage = stage;

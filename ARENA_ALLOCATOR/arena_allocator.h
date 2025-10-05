@@ -1,3 +1,7 @@
+#ifndef ARENA_ALLOCATOR_H
+#define ARENA_ALLOCATOR_H
+
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -6,6 +10,9 @@
 #include <stdatomic.h>
 #include <stdbool.h>
 #include "../Sequence_lock/Sequence_lock.h"
+
+#define STAGE_DATA_SIZE 2048
+
 
 typedef struct stage_s {
     
@@ -49,7 +56,7 @@ extern bool stage_deref(stage_t*);
 // reset stage memory
 extern bool stage_reset(stage_t*);
 
-
+#endif
 
 
 
