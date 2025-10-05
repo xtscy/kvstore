@@ -29,7 +29,7 @@ int main() {
     char c[15] = {0};
     snprintf(c, sizeof(c), "HELLO WORLD");
     printf("c : %s\n", c);
-    
+     
     block_alloc_t *block_ptr_char = NULL;
     printf("strlen(c): %lu", strlen(c));
     block_ptr_char = stage_alloc(strlen(c), stage_ptr);
@@ -73,7 +73,7 @@ int main() {
 
     // 测试减少引用从而自动reset
 
-    
+
 
     
     
