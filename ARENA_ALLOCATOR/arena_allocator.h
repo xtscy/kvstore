@@ -48,7 +48,7 @@ typedef struct block_alloc_s {
 //create stage
 extern stage_t *stage_create(size_t);
 // alloc bytes from stage
-extern block_alloc_t* stage_alloc(size_t, stage_t*);
+extern block_alloc_t stage_alloc(size_t, stage_t*);
 // destroy stage
 extern bool stage_destroy(stage_t*);
 // decrement reference of stage

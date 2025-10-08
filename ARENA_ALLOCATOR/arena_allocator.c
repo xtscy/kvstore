@@ -34,13 +34,13 @@ stage_t *stage_create(size_t capacity) {
 // 并且这里没有回滚，因为当前已经占有锁
 // 只有当操作成功时才会释放序列锁
 // 在中间阶段不会有其他写操作打扰，所以不需要回滚
-block_alloc_t *stage_alloc(size_t size, stage_t *stage) {
+block_alloc_t stage_alloc(size_t size, stage_t *stage) {
 
     // 单线程的控制依赖已经为CPU提供了足够的排序保证
     // 现代CPU会尊重这种依赖
     if (size == 0 || stage == NULL) {
         printf("size or/and stage is unfair\n");
-        return NULL;
+        exit(-1);
     }
     
     // 在参数有效后，开始定义变量
@@ -58,10 +58,15 @@ block_alloc_t *stage_alloc(size_t size, stage_t *stage) {
         //当前序列锁没有被写锁，这里再读used判断是否还有空位。写的时候才锁，
         current_used = atomic_load_explicit(&stage->used, memory_order_relaxed);
         // 内嵌管理结构
-        new_used = current_used + sizeof(block_alloc_t) + size;
+        // new_used = current_used + sizeof(block_alloc_t) + size;
+        new_used = current_used + size;
         if (new_used >= stage->capacity) {
-            printf("当前stage容量不足,无法申请");
-            return NULL;
+            printf("当前stage容量不足,无法申请\n");
+            return (block_alloc_t){
+                .ptr = NULL,
+                .size = 0,
+                .stage = NULL
+            };
         }
 
         // 进行写操作，先获取写锁, 如果true那么获取写锁成功，否则如果为false获取失败
@@ -77,13 +82,67 @@ block_alloc_t *stage_alloc(size_t size, stage_t *stage) {
         }
     } while(true);
 
-    block_alloc_t *ret = (block_alloc_t *)(stage->init_pos + current_used);
-    ret->ptr = stage->init_pos + current_used + sizeof(block_alloc_t);
-    ret->size = size;
-    ret->stage = stage;
-
-    return (block_alloc_t*)(stage->init_pos + current_used);
+    // block_alloc_t *ret = (block_alloc_t *)(stage->init_pos + current_used);
+    // ret->ptr = stage->init_pos + current_used + sizeof(block_alloc_t);
+    // ret->size = size;
+    // ret->stage = stage;
+    // return (block_alloc_t*)(stage->init_pos + current_used);
+    return (block_alloc_t){
+        .ptr = stage->init_pos + current_used,
+        .size = size,
+        .stage = stage
+    };
 }
+// block_alloc_t *stage_alloc(size_t size, stage_t *stage) {
+
+//     // 单线程的控制依赖已经为CPU提供了足够的排序保证
+//     // 现代CPU会尊重这种依赖
+//     if (size == 0 || stage == NULL) {
+//         printf("size or/and stage is unfair\n");
+//         return NULL;
+//     }
+    
+//     // 在参数有效后，开始定义变量
+//     size_t seq;// 这里可以不写初始值，赋值随机变量
+//     size_t current_used, new_used;
+
+//     do {
+//         // 目前不需要可见性同步语义
+//         seq = atomic_load_explicit(&stage->lock.seq_lock, memory_order_acquire);
+//         //! CPU会保证正确的控制流排序执行,以便于不改变控制流逻辑
+//         if (seq & 1) {
+//             continue;
+//         }
+        
+//         //当前序列锁没有被写锁，这里再读used判断是否还有空位。写的时候才锁，
+//         current_used = atomic_load_explicit(&stage->used, memory_order_relaxed);
+//         // 内嵌管理结构
+//         new_used = current_used + sizeof(block_alloc_t) + size;
+//         if (new_used >= stage->capacity) {
+//             printf("当前stage容量不足,无法申请");
+//             return NULL;
+//         }
+
+//         // 进行写操作，先获取写锁, 如果true那么获取写锁成功，否则如果为false获取失败
+//         if (atomic_compare_exchange_weak_explicit(&stage->lock.seq_lock, &seq, seq + 1, 
+//             memory_order_acquire, memory_order_relaxed)) {
+//             // 进行写操作,更改new_used
+//             atomic_store_explicit(&stage->used, new_used, memory_order_relaxed);
+//             atomic_fetch_add_explicit(&stage->reference_count, 1, memory_order_relaxed);
+//             // 上面两个relaxed,谁先执行都可以
+//             //更新完后释放序列锁 ,这里不用CAS，因为奇数其他写不了这里不用比较原值，所以直接add
+//             atomic_fetch_add_explicit(&stage->lock.seq_lock, 1, memory_order_release);
+//             break;
+//         }
+//     } while(true);
+
+//     block_alloc_t *ret = (block_alloc_t *)(stage->init_pos + current_used);
+//     ret->ptr = stage->init_pos + current_used + sizeof(block_alloc_t);
+//     ret->size = size;
+//     ret->stage = stage;
+
+//     return (block_alloc_t*)(stage->init_pos + current_used);
+// }
 
 
 
