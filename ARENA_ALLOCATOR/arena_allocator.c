@@ -2,8 +2,7 @@
 
 
 
-stage_allocator_t *stage_allocator = NULL;
-size_t block_size = sizeof(block_alloc_t);
+// size_t block_size = sizeof(block_alloc_t);
 
 
 
@@ -34,6 +33,9 @@ stage_t *stage_create(size_t capacity) {
 // 并且这里没有回滚，因为当前已经占有锁
 // 只有当操作成功时才会释放序列锁
 // 在中间阶段不会有其他写操作打扰，所以不需要回滚
+
+// 批处理直接开辟空间，并且在当前用完后--ref
+// 对于cache的分配，每次同样incref,写在cache_alloc中
 block_alloc_t stage_alloc(size_t size, stage_t *stage) {
 
     // 单线程的控制依赖已经为CPU提供了足够的排序保证
@@ -93,6 +95,10 @@ block_alloc_t stage_alloc(size_t size, stage_t *stage) {
         .stage = stage
     };
 }
+
+
+
+
 // block_alloc_t *stage_alloc(size_t size, stage_t *stage) {
 
 //     // 单线程的控制依赖已经为CPU提供了足够的排序保证
@@ -284,6 +290,13 @@ bool stage_reset(stage_t *stage) {
     }
 }
 
+
+
+
+
+
+
+
 // // block_alloc_t *stage_alloc(size_t size, stage_t *stage) {
 //         // block_alloc_t *block = NULL;
 //         
@@ -324,7 +337,7 @@ bool stage_reset(stage_t *stage) {
 //     //do {
 
 //         //if (reference_count != 0) {
-//       //      printf("stage reset falied!\n");
+//       //      printf("stage reset fal ied!\n");
 //     //        return false;
 //   //      }
 //     // 这里涉及多个原子变量共同修改和同步，一种解决方法是使用一个数，例如128位，前64位是used,后64位是reference_count

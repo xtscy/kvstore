@@ -25,14 +25,7 @@ typedef struct stage_s {
     uint8_t init_pos[];
 } stage_t;
 
-typedef struct stage_allocator_s {
 
-    stage_t *head;
-    atomic_size_t stage_total;
-    // 也可以不要current，这里是不想重新从链表头开始遍历，所以记录
-    stage_t *current;
-
-} stage_allocator_t;
 
 // 这里对分配的内存块也进行了封装
 
