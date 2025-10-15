@@ -13,11 +13,13 @@
 
 #define STAGE_DATA_SIZE 2048
 
-
+// 
 typedef struct stage_s {
     
     sequence_lock_t lock;
     atomic_size_t used;
+    _Atomic(uint8_t) fail_cnt;
+    // _Atomic(uint8_t) deref_cnt;
     size_t capacity;
     // refernce_count 用于判断是否可reset
     atomic_size_t reference_count;
@@ -41,7 +43,8 @@ typedef struct block_alloc_s {
 //create stage
 extern stage_t *stage_create(size_t);
 // alloc bytes from stage
-extern block_alloc_t stage_alloc(size_t, stage_t*);
+extern block_alloc_t stage_alloc_optimistic(size_t, stage_t*);
+extern block_alloc_t stage_alloc_pessimistic(size_t, stage_t*);
 // destroy stage
 extern bool stage_destroy(stage_t*);
 // decrement reference of stage
