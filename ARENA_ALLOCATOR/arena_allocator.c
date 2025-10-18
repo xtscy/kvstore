@@ -7,14 +7,13 @@ stage_t *stage_create(size_t capacity)
     stage_t *stage = NULL;
     // create allocator
     size_t size = sizeof(stage_t) + capacity;
-    if (stage = malloc(size))
+    if ((stage = malloc(size)) != NULL)
     {
         stage->capacity = capacity;
         // 这里在create里可以不用锁，因为当前stage还未链接到链表中，并不会被多个线程访问，最多就是返回的当前线程
         atomic_init(&stage->used, 0);
         atomic_init(&stage->reference_count, 0);
         atomic_init(&stage->fail_cnt, 0);
-
         // 这里只是初始化next为NULL,由外部来做链接操作
         stage->next = NULL;
         atomic_init(&stage->lock.seq_lock, 0);
@@ -36,9 +35,9 @@ stage_t *stage_create(size_t capacity)
 
 // 批处理直接开辟空间，并且在当前用完后--ref
 // 对于cache的分配，每次同样incref,写在cache_alloc中
-block_alloc_t stage_alloc_optimistic(size_t size, stage_t *stage)
+block_alloc_t stage_alloc_optimistic(size_t size, stage_allocator_t *allocator)
 {
-
+    stage_t *stage = allocator->stage;
     // 单线程的控制依赖已经为CPU提供了足够的排序保证
     // 现代CPU会尊重这种依赖
     if (size == 0 || stage == NULL)
@@ -76,7 +75,7 @@ block_alloc_t stage_alloc_optimistic(size_t size, stage_t *stage)
             return (block_alloc_t){
                 .ptr = NULL,
                 .size = 0,
-                .stage = NULL};
+                .allocator = NULL};
         }
 
         // 这里要增加fail_cnt,那么必须在判断容量不足，且seq序列不变得情况下，否则
@@ -111,12 +110,12 @@ block_alloc_t stage_alloc_optimistic(size_t size, stage_t *stage)
     return (block_alloc_t){
         .ptr = stage->init_pos + current_used,
         .size = size,
-        .stage = stage};
+        .allocator = allocator};
 }
 //
-block_alloc_t stage_alloc_pessimistic(size_t size, stage_t *stage)
+block_alloc_t stage_alloc_pessimistic(size_t size, stage_allocator_t *allocator)
 {
-
+    stage_t *stage = allocator->stage;
     // 单线程的控制依赖已经为CPU提供了足够的排序保证
     // 现代CPU会尊重这种依赖
     if (size == 0 || stage == NULL)
@@ -131,9 +130,8 @@ block_alloc_t stage_alloc_pessimistic(size_t size, stage_t *stage)
 
     do
     {
-        // 目前不需要可见性同步语义
+        
         seq = atomic_load_explicit(&stage->lock.seq_lock, memory_order_acquire);
-        //! CPU会保证正确的控制流排序执行,以便于不改变控制流逻辑
         if (seq & 1)
         {
             continue;
@@ -192,7 +190,7 @@ block_alloc_t stage_alloc_pessimistic(size_t size, stage_t *stage)
                         return (block_alloc_t){
                             .ptr = NULL,
                             .size = 0,
-                            .stage = NULL
+                            .allocator = NULL
                         };
 
                     }
@@ -203,7 +201,7 @@ block_alloc_t stage_alloc_pessimistic(size_t size, stage_t *stage)
                     return (block_alloc_t){
                         .ptr = NULL,
                         .size = 0,
-                        .stage = NULL};
+                        .allocator = NULL};
                 }
             }
 
@@ -225,7 +223,7 @@ block_alloc_t stage_alloc_pessimistic(size_t size, stage_t *stage)
     return (block_alloc_t){
         .ptr = stage->init_pos + current_used,
         .size = size,
-        .stage = stage};
+        .allocator = allocator};
 }
 
 // block_alloc_t *stage_alloc(size_t size, stage_t *stage) {
@@ -389,7 +387,7 @@ bool stage_deref_batch(stage_t *stage, uint8_t deref_cnt)
 {
 
     size_t seq, used;
-    uint8_t cur_ref;
+    size_t cur_ref;
     do
     {
         seq = atomic_load_explicit(&stage->lock.seq_lock, memory_order_acquire);
@@ -410,11 +408,16 @@ bool stage_deref_batch(stage_t *stage, uint8_t deref_cnt)
             // 这里还是要做安全处理
             // 检查是否过度deref了
 
+            // 这里注意类型安全，不能用uint8_t,因为累计的值很可能>=256,当256时，cur_ref得到的值为0
+            // 导致判断错误,所以需要使用尽可能大的类型，这里先用size_t
+            // 如果超过取值范围下面的判断会直接报错终止程序
+            
             cur_ref = atomic_load_explicit(&stage->reference_count, memory_order_relaxed);
 
             if (deref_cnt > cur_ref)
             {
-                perror("过度deref\n");
+                printf("deref_cnt : %d, cur_ref : %ld\n", deref_cnt, cur_ref);
+                perror("过度deref or 引用累计值超过类型取值范围\n");
                 exit(-3);
             }
 

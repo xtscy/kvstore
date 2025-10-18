@@ -5,5 +5,5 @@
 
 cc = gcc
 version = c11
-test_allocator : test_allocator.c ../stage_allocator.c ../arena_allocator.c
-	$(cc) -std=$(version) $^ -o $@ 
+test_allocator_2 : test_allocator_2.c ../stage_allocator.c ../arena_allocator.c
+	$(cc) -g -O0 -std=$(version) $^ -o $@ 
