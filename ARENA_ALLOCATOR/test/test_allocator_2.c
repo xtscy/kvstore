@@ -281,7 +281,7 @@ void test3() {
 
 
 
-#define alloc_array_size 100001
+#define alloc_array_size 800000
 block_alloc_t* array = NULL;
 
 void init() {
@@ -309,7 +309,7 @@ void *worker_a(void *arg) {
 
     block_alloc_t block_temp = {0};
     int write_pos = 0;
-    for (int i = 0; i <= 100000; i++) {
+    for (int i = 0; i <= 1000; i++) {
 
         block_temp = allocator_alloc(&global_allocator, sizeof(int));
         memcpy(block_temp.ptr, &i, block_temp.size);

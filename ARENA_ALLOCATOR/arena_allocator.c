@@ -197,7 +197,7 @@ block_alloc_t stage_alloc_pessimistic(size_t size, stage_allocator_t *allocator)
                     // 这里重置后，可以继续使用该stage进行分配
                 } else {
                     atomic_fetch_add_explicit(&stage->lock.seq_lock, 1, memory_order_release);
-                    printf("当前stage容量不足,无法申请\n");
+                    // printf("当前stage容量不足,无法申请\n");
                     return (block_alloc_t){
                         .ptr = NULL,
                         .size = 0,
@@ -383,7 +383,7 @@ bool stage_deref(stage_t *stage)
     return false;
 }
 
-bool stage_deref_batch(stage_t *stage, uint8_t deref_cnt)
+bool stage_deref_batch(stage_t *stage, size_t deref_cnt)
 {
 
     size_t seq, used;
@@ -416,7 +416,7 @@ bool stage_deref_batch(stage_t *stage, uint8_t deref_cnt)
 
             if (deref_cnt > cur_ref)
             {
-                printf("deref_cnt : %d, cur_ref : %ld\n", deref_cnt, cur_ref);
+                printf("deref_cnt : %ld, cur_ref : %ld\n", deref_cnt, cur_ref);
                 perror("过度deref or 引用累计值超过类型取值范围\n");
                 exit(-3);
             }

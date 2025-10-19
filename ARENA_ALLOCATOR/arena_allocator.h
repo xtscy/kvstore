@@ -11,7 +11,7 @@
 #include <stdbool.h>
 #include "../Sequence_lock/Sequence_lock.h"
 
-#define STAGE_DATA_SIZE 2048
+#define STAGE_DATA_SIZE 2048 * 5
 
 // 
 typedef struct stage_s {
@@ -31,7 +31,10 @@ typedef struct stage_allocator_s {
 
     stage_t *stage;
     // 在外部缓存deref,当达到阈值时,直接调用批处理deref
-    _Atomic(uint8_t) deref_cnt;
+    _Atomic(size_t) deref_cnt;
+    uint8_t monitor_sign;
+    size_t last_deref_cnt;
+
     struct stage_allocator_s *next;
 } stage_allocator_t;
 
@@ -57,7 +60,7 @@ extern bool stage_destroy(stage_t*);
 extern bool stage_deref(stage_t*);
 // reset stage memory
 extern bool stage_reset(stage_t*);
-extern bool stage_deref_batch(stage_t *, uint8_t);
+extern bool stage_deref_batch(stage_t *, size_t);
 #endif
 
 
