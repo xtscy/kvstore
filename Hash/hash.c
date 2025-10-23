@@ -95,6 +95,8 @@ bool key_compare(hash_item_t *item, void *key_data, uint16_t key_size) {
 // 所以下面的insert可以直接复用，但是拿的时候就不知道存的是什么类型，所以
 // 还是需要增添一个标识类型的枚举字段
 // 这里用户外部调用函数，把非整形类型转换成整形类型
+// 这里不允许有重复的键
+// 就算类型不同，键也不能相同
 bool insert(unsigned long key_pos, void *key_data, uint16_t key_size,
     void* val, uint16_t val_size, hash_table_t *table, value_type_t type) {
 
@@ -128,8 +130,7 @@ bool insert(unsigned long key_pos, void *key_data, uint16_t key_size,
             return true;
         }
         
-        if (key_compare(&table->table[cur_pos], key_data, key_size)
-        && cur_item->val_type == type) {
+        if (key_compare(&table->table[cur_pos], key_data, key_size)) {
             // 如果判断成功，即下标位置的key相同，直接更改value值
             // 那么这里还需要回收之前的值吗
             //! 当前是直接malloc开辟的值,那么直接free即可
@@ -137,6 +138,7 @@ bool insert(unsigned long key_pos, void *key_data, uint16_t key_size,
             free(cur_item->val);
             table->table[cur_pos].val = val;
             table->table[cur_pos].val_size = val_size;
+            table->table[cur_pos].val_type = type;
             return true;
         }
         
@@ -149,26 +151,8 @@ bool insert(unsigned long key_pos, void *key_data, uint16_t key_size,
 }
 
 
-long hash_table_search_int(char *key, uint16_t key_size, hash_table_t *table) {
-
-
-    
-}
-
-double hash_table_search_double(char *key, uint16_t key_size, hash_table_t *table) {
-
-
-    
-}
-
-char* hash_table_search_string(char *key, uint16_t key_size, uint16_t *target_length, hash_table_t *table) {
-
-        
-    
-}
-
-
-void* hash_table_search(unsigned long key, void *key_data, uint16_t key_size, hash_table_t *table) {
+void* hash_table_search(unsigned long key, void *key_data, uint16_t key_size, 
+    value_type_t *type, hash_table_t *table) {
     unsigned long init_pos = 0, step_size = 0, cur_pos = 0;
     init_pos = hash_init_pos(key, table);
     step_size = hash_step_size(key, table);
@@ -177,22 +161,101 @@ void* hash_table_search(unsigned long key, void *key_data, uint16_t key_size, ha
         cur_pos = (init_pos + step_size * i) % table->size;
         // 没被占用或者被删除,说明当前位置是空
         if (!table->table[cur_pos].is_occupied || table->table[cur_pos].is_deleted) {
-            break;
+            return NULL;
         }
         // 当前位置为有效值，判断是否和搜索键相同
 
         if (key_compare(&table[cur_pos], key_data, key_size)) {
+            *type = table->table[cur_pos].val_type;
             return table->table[cur_pos].val;
         }
-        
     }
-    
+    // 遍历完整个数组，不存在该键
+    return NULL;    
+}
+
+bool hash_table_delete(unsigned long key, void *key_data, uint16_t key_size, hash_table_t *table) {
+
+    // 遍历table找到相同key
+    unsigned long init_pos = 0, step_size = 0, cur_pos = 0;
+    init_pos = hash_init_pos(key, table);
+    cur_pos = hash_step_size(key, table);
+    for (int i = 0; i < table->size; i++) {
+        cur_pos = (init_pos + step_size * i) % table->size;
+        if (!table->table[cur_pos].is_occupied || table->table[cur_pos].is_deleted) {
+            return false;
+        }
+        if (key_compare(&table->table[cur_pos], key_data, key_size)) {
+            table->table[cur_pos].is_deleted = true;
+            return true;
+        }
+    }   
+    return false;
 }
 
 
+void hash_table_print(hash_table_t *table) {
+    hash_item_t *temp_item = NULL;
+    value_type_t type = 0;
+    char temp_buffer[257] = {0};// 这里key不超过256
+    int int_array[200] = {0};
+    double double_array[200] = {0};
+    char* string_array[200] = {0};
+    int int_cpos = 0, double_cpos = 0, string_cpos = 0;
+    int string_size = 0;
+    for (int i = 0; i < table->size; i++) {
+        temp_item = &table->table[i];
+        type = temp_item->val_type;
+
+        if (type == Int) {
+
+            int_array[int_cpos++] = *(long*)temp_item->val;
+            
+            // snprintf保证最后一个位置是字符串结束标志
+            // snprintf(temp_buffer, temp_item->key_size, "%s", temp_item->key);
+            // printf("pos:%d key: %s || value: %ld\n", i, temp_buffer, *((long*)temp_item->val));
+            
+        } else if (type == Double) {
+            
+            double_array[double_cpos++] = *(double*)temp_item->val;
+            
+            // snprintf(temp_buffer, temp_item->key_size, "%s", temp_item->key);
+            // printf("pos:%d key: %s || value: %lf\n", i, temp_buffer, *((double*)temp_item->val));
+            
+            
+        } else if (type == String) {
+
+            string_size = temp_item->val_size;
+            
+            char *m_string = malloc(string_size + 1);
+            memset(m_string, 0, string_size + 1);
+            memcpy(m_string, temp_item->val, temp_item->val_size);
 
 
+            
+            string_array[string_cpos++] = m_string;
+            
+            // snprintf(temp_buffer, temp_item->key_size, "%s", temp_item->key);
+            // printf("pos:%d key: %s || value: %s\n", i, temp_buffer, (char*)temp_item->val);
+            
+        } 
+    }    
 
+    for (int i = 0; i < int_cpos; i++) {
+
+        printf("int %d : %d\n", i, int_array[i]);
+    }
+
+    for (int i = 0; i < double_cpos; i++) {
+
+        printf("double %d : %lf\n", i, double_array[i]);
+    }
+    
+    for (int i = 0; i < int_cpos; i++) {
+
+        printf("string %d : %s\n", i, string_array[i]);
+    }
+}
 
 
 

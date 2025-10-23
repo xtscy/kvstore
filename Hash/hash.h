@@ -45,9 +45,6 @@ extern bool insert(unsigned long, void*, uint16_t, void*, uint16_t, hash_table_t
 extern unsigned long string_to_key(const char*);
 extern bool key_compare(hash_item_t*, void*, uint16_t);
 
-extern void* hash_table_search(unsigned long, void*, uint16_t, hash_table_t*);
-
-extern long hash_table_search_int(char*, uint16_t, hash_table_t*);
-extern double hash_table_search_double(char*, uint16_t, hash_table_t*);
-extern char* hash_table_search_string(char*,uint16_t, uint16_t*, hash_table_t*);
+extern void* hash_table_search(unsigned long, void*, uint16_t, value_type_t*, hash_table_t*);
+extern bool hash_table_delete(unsigned long, void*, uint16_t, hash_table_t*);
 
