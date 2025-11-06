@@ -349,7 +349,7 @@ static bool destroy_node(btree_node_t *node) {
 }
 
 
-static bool merge_node(btree_node_t *parent, int idx) {
+static void merge_node(btree_node_t *parent, int idx) {
 
     if (!parent) {
 
@@ -364,7 +364,7 @@ static bool merge_node(btree_node_t *parent, int idx) {
     for (int i = 0; i < right_child->num_keys; i++) {
         left_child->keys[left_child->num_keys + 1 + i] = right_child->keys[i];
     }
-    // 把右子树的节点全部搬到左子树的children
+    // 把右子树的children全部搬到左子树
     for (int i = 0; i <= right_child->num_keys; i++) {
         left_child->children[left_child->num_keys + 1 + i] = right_child->children[i];
     }
@@ -381,9 +381,7 @@ static bool merge_node(btree_node_t *parent, int idx) {
         parent->children[i - 1] = parent->children[i];
     }
     parent->num_keys --;
-    right_child->is_leaf = true;
     destroy_node(right_child);
-    return true;
 }
 
 // 借位
@@ -455,8 +453,69 @@ static void borrow_from_right(btree_node_t *parent, int idx) {
 }
 
 
-static void remove(btree_node_t *node, int key) {
+static void remove(btree_node_t *node, int key, int t) {
 
+    if (!node) {
+        printf("node is null in remove\n");
+        exit(-2);
+    }
+
+    btree_node_t *current = node;
+    int c_idx = -1;
+    while (true) {
+        c_idx = find_key_idx(current, key);
+        btree_node_t *left_child = NULL;
+        btree_node_t *right_child = NULL;
+
+// 找到还是没找到
+// 是否是叶子节点
+
+        if (c_idx < current->num_keys) {
+            left_child = current->children[c_idx];
+            right_child = current->children[c_idx + 1];
+            if (current->keys[c_idx] == key) {
+                if (current->is_leaf) {
+                    // 直接删除
+                    for (int i = c_idx + 1; i < current->num_keys; i++) {
+                        current->keys[i - 1] = current->keys[i];
+                    }
+                    return true;                
+                } else {
+                    // 利用前后驱替换,不能前后驱则用合并下沉
+                    if (left_child->num_keys >= t) {
+                        // 可以使用前驱替换，前驱有足够的键个数
+                        int p_val = get_precursor(current, c_idx);
+                        current->keys[c_idx] = p_val;
+                        current = left_child;
+                        key = p_val;
+                        continue;
+                    } else if (right_child->num_keys >= t) {
+                        int s_val = get_successor(current, c_idx);
+                        current->keys[c_idx] = s_val;
+                        current = right_child;
+                        key = s_val;
+                        continue;
+                    } else {
+                        //前后驱键个数不足,不能直接覆盖，则把当前节点下沉
+                        merge_node(current, c_idx);
+                        current = current->children[c_idx];
+                        continue;
+                    }
+                }    
+            }
+        }
+        // c_idx == num_keys或者c_idx < num_keys && keys[c_idx] < key
+        // 即找到末尾或者找到某个key小于的位置
+        // 这两种都算是没找到,那么去到子节点继续寻找，在这之前对键的个数进行检查和填充
+        if (c_idx == current->num_keys) {
+
+            
+            
+        }
+        
+
+        
+    }
 
     
 }
@@ -468,9 +527,17 @@ bool btree_remove(btree_t *tree, int key) {
         printf("tree is null at btree_remove\n");
         exit(-2);
     }
-     
-    
-    
+    // not exist return directly true
+    if (!btree_contains(tree, key)) {
+        return true;
+    }
+    // 允许根节点键个数大于0就行，所以这里不需要判断根节点是否需要填充
+    btree_node_t *root = tree->root;
+    remove(root, key, tree->t);
+    // 根节点键个数为0，降低树高度
+    if (root->num_keys == 0) {
+        tree->root = root->children[0];
+        destroy_node(root);
+    }
+    return true;
 }   
-
- 
