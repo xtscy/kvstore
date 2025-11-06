@@ -291,7 +291,7 @@ static int find_key_idx(btree_node_t *node, int key) {
     int idx = 0;
     for (idx = 0; idx < node->num_keys; idx++) {
 
-        if (node->keys[idx] <= key) {
+        if (key <= node->keys[idx]) {
             return idx;
         }
     }
@@ -348,7 +348,7 @@ static bool destroy_node(btree_node_t *node) {
     return true;
 }
 
-
+//idx为要合并的左子区间节点索引
 static void merge_node(btree_node_t *parent, int idx) {
 
     if (!parent) {
@@ -391,7 +391,7 @@ static void merge_node(btree_node_t *parent, int idx) {
 // 这里会保证左兄弟有足够的键，以此来填充右兄弟的键个数
 
 // 这里idx是当前要填充的子区间的索引
-static borrow_from_left(btree_node_t *parent, int idx) {
+static void borrow_from_left(btree_node_t *parent, int idx) {
 
     if (!parent) {
         printf("parent is null at borrow_from_left\n");
@@ -424,7 +424,7 @@ static borrow_from_left(btree_node_t *parent, int idx) {
     left_node->num_keys--;
     right_node->num_keys++;
 }
-
+// idx指向当前区间
 static void borrow_from_right(btree_node_t *parent, int idx) {
 
     if (!parent) {
@@ -450,6 +450,30 @@ static void borrow_from_right(btree_node_t *parent, int idx) {
     
     left_node->num_keys++;
     right_node->num_keys--;
+}
+
+// idx为要填充的区间的索引
+static void fill_node(btree_node_t *parent, int idx, int t) {
+
+    btree_node_t *target = parent->children[idx];
+    // 这里idx在num_keys和小于num_keys
+    // 这里先借左兄弟和右兄弟，如果不能借，则用下沉来填充
+    // 下沉这里特殊判断最后一个位置
+    
+    if (idx > 0 && parent->children[idx - 1]->num_keys >= t) {
+        borrow_from_left(parent, idx);
+        return;
+    }
+    if (idx < parent->num_keys && parent->children[idx + 1]->num_keys >= t) {
+        borrow_from_right(parent,idx);
+        return;
+    }
+
+    if (idx == parent->num_keys) {
+        merge_node(parent, idx - 1);
+    } else {
+        merge_node(parent, idx);
+    }
 }
 
 
@@ -479,7 +503,7 @@ static void remove(btree_node_t *node, int key, int t) {
                     for (int i = c_idx + 1; i < current->num_keys; i++) {
                         current->keys[i - 1] = current->keys[i];
                     }
-                    return true;                
+                    return;             
                 } else {
                     // 利用前后驱替换,不能前后驱则用合并下沉
                     if (left_child->num_keys >= t) {
@@ -505,19 +529,17 @@ static void remove(btree_node_t *node, int key, int t) {
             }
         }
         // c_idx == num_keys或者c_idx < num_keys && keys[c_idx] < key
-        // 即找到末尾或者找到某个key小于的位置
-        // 这两种都算是没找到,那么去到子节点继续寻找，在这之前对键的个数进行检查和填充
-        if (c_idx == current->num_keys) {
-
-            
-            
+        
+        // 这里没有找到键无论是最后一个子区间节点，还是内部子区间节点
+        // 都执行相同的逻辑去到该子区间节点
+        // 这里不需要判断如果是叶子节点那么child不存在的情况
+        // 因为删除的前提一定是该键存在
+        btree_node_t *next = current->children[c_idx];
+        if (next->num_keys < t) {
+            fill_node(current, c_idx, t);
         }
-        
-
-        
+        current = next;
     }
-
-    
 }
 
 
