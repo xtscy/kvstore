@@ -50,5 +50,6 @@ extern bool btree_contains(btree_t*, int);
 extern search_result_t btree_search(btree_t *, int);
 extern bool btree_remove(btree_t*, int);
 extern void btree_inorder_traversal(btree_t*);
+extern void btree_inorder_traversal_test_array(btree_t*, int*);
 
 #endif

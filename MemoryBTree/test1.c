@@ -142,7 +142,12 @@ void test4() {
         }
     }
     printf("\n-----------------------\n");
-    // btree_inorder_traversal(g_tree);
+    printf("\n-----------------------\n");
+    printf("\n-----------------------\n");
+    printf("\n-----------------------\n");
+    printf("\n-----------------------\n");
+    // 测试结构是否正确，用中序遍历
+    btree_inorder_traversal_test_array(g_tree, test_array);
     printf("\n");
 }
 

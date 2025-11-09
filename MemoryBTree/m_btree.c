@@ -613,6 +613,8 @@ bool btree_remove(btree_t* tree, int key) {
     return true;
 }
 
+int test_idx = 0;
+
 static void inorder_traversal(btree_node_t* node) {
 
     if (node->is_leaf) {
@@ -630,7 +632,6 @@ static void inorder_traversal(btree_node_t* node) {
     }
 }
 
-
 void btree_inorder_traversal(btree_t* tree) {
 
     if (!tree || !tree->root) {
@@ -639,6 +640,45 @@ void btree_inorder_traversal(btree_t* tree) {
     }
 
     inorder_traversal(tree->root);
+}
+
+static void inorder_traversal_test_array(btree_node_t* node, int *test_array) {
+
+    if (node->is_leaf) {
+        for (int i = 0; i < node->num_keys; i++) {
+            if (test_array[test_idx++] == node->keys[i]) {
+                printf("%d ", node->keys[i]);
+            } else {
+                printf("%d 所在位置错误\n", node->keys[i]);
+                exit(-10);
+            }
+        }
+        return;
+    }
+
+    for (int i = 0; i <= node->num_keys; i++) {
+        inorder_traversal_test_array(node->children[i], test_array);
+        if (i != node->num_keys) {
+            // printf("%d ", node->keys[i]);
+            if (test_array[test_idx++] == node->keys[i]) {
+                printf("%d ", node->keys[i]);
+            } else {
+                printf("%d 所在位置错误\n", node->keys[i]);
+                exit(-10);
+            }
+        }
+    }
+}
+
+
+void btree_inorder_traversal_test_array(btree_t* tree, int *test_array) {
+
+    if (!tree || !tree->root) {
+        printf("tree is null in btree_inorder_traversal\n");
+        return;
+    }
+
+    inorder_traversal_test_array(tree->root, test_array);
 }
 
 
