@@ -44,10 +44,11 @@ typedef struct search_result_s {
 
 
 extern btree_t* btree_create(int);
+// tree, key
 extern bool btree_insert(btree_t*, int);
 extern bool btree_contains(btree_t*, int);
 extern search_result_t btree_search(btree_t *, int);
 extern bool btree_remove(btree_t*, int);
-
+extern void btree_inorder_traversal(btree_t*);
 
 #endif

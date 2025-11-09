@@ -1,0 +1,3 @@
+/workspaces/codespaces-blank/kvstore/MemoryBTree/CMakeFiles/rebuild_cache.dir
+/workspaces/codespaces-blank/kvstore/MemoryBTree/CMakeFiles/edit_cache.dir
+/workspaces/codespaces-blank/kvstore/MemoryBTree/CMakeFiles/test1.dir
