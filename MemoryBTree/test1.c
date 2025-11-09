@@ -147,8 +147,18 @@ void test4() {
     printf("\n-----------------------\n");
     printf("\n-----------------------\n");
     // 测试结构是否正确，用中序遍历
-    btree_inorder_traversal_test_array(g_tree, test_array);
+    // btree_inorder_traversal_test_array(g_tree, test_array);
     printf("\n");
+
+    for (int i = 5000; i <= 7999; i++) {
+        btree_remove(g_tree, i);
+    }
+    btree_inorder_traversal(g_tree);
+    printf("\n-----------------------\n");
+    printf("\n-----------------------\n");
+    printf("\n-----------------------\n");
+    printf("\n-----------------------\n");
+    printf("\n-----------------------\n");
 }
 
 int main() {
