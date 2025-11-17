@@ -36,13 +36,14 @@ int Process_Data_Task(task_t *t) {
     int prev = 0, pos = 0;
     int is_reading = -1;//-1 未读，1读
     int cur_token = 0;
+    int del_cnt = 0;
     //* 这里由于token个数有限，可以先解析一部分，执行任务然后再来分割，然后再来执行。循环，直到当前payload_len全部执行完毕。退出整个任务执行的循环
     while(t->payload_len != 0) {    
         
-        is_reading = -1, pos = 0, prev = 0;
+        is_reading = -1, del_cnt = 0, prev = 0;
         
 
-        for (int i = 0; i < t->payload_len; i++) {
+        for (int i = pos; i < t->payload_len; i++) {
 
             // if (num_token >= 64) {
             //     return -2;
@@ -52,6 +53,7 @@ int Process_Data_Task(task_t *t) {
                 if (is_reading == -1) {
                     //未读
                     pos++;
+                    del_cnt++;
                 } else if (is_reading == 1) {
                     //* 正在读，遇到空格，直接结束
                     token[num_token++] = &t->payload[prev];
@@ -59,14 +61,13 @@ int Process_Data_Task(task_t *t) {
                     is_reading = -1;
                     t->payload[pos] = 0;
                     pos++;
+                    del_cnt++;
                     if (num_token >= 64) {
                         //* 退出当前循环，直接去执行任务，执行完，再重置num_token
                         break;
                     }
                 }
-            }
-            
-            if (
+            } else if (
             (((int)(t->payload[pos])) >= 'A' && t->payload[pos] <= 'Z') || 
             (((int)(t->payload[pos])) >= 'a' && ((int)(t->payload[pos])) <= 'z') || 
             (((int)(t->payload[pos])) >= '0' && ((int)(t->payload[pos])) <= '9')
@@ -76,6 +77,7 @@ int Process_Data_Task(task_t *t) {
                     is_reading = 1;
                 }
                 pos++;
+                del_cnt++;
                 continue;
             }
 
@@ -91,7 +93,6 @@ int Process_Data_Task(task_t *t) {
 
             int ret = token_to_order(token[cur_token]);
             if (ret == -1) {
-                
                 return -2;//* 这里可以遇到错误直接返回，也可以跳过当前的token
             }
             int flag = 0;
@@ -159,7 +160,7 @@ int Process_Data_Task(task_t *t) {
         }
 
         num_token = 0;
-        t->payload_len -= pos;
+        t->payload_len -= del_cnt;
     }
 
     return 0;//* 0成功

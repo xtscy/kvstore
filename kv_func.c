@@ -16,12 +16,12 @@ int is_integer(const char *str) {
     char *endptr = NULL;
     errno = 0; // 必须重置errno
     long value = strtol(str, &endptr, 10); // 10表示十进制
-    printf("errno:%d\n", errno);
+    // printf("errno:%d\n", errno);
     // 三个条件必须同时满足：
     // 1. 整个字符串都被成功转换 (endptr指向字符串结束符)
     // 2. 没有发生溢出错误 (errno保持为0)
     // 3. 至少转换了一个字符 (避免空字符串或纯符号)
-    printf("*endptr:%c, errno:%d,endptr:%p\n", *(endptr - 2), errno, endptr);
+    // printf("*endptr:%c, errno:%d,endptr:%p\n", *(endptr - 2), errno, endptr);
     return (*endptr == '\0' && errno == 0 && endptr != str);
 }
 
@@ -106,7 +106,7 @@ int KV_SET(char *k, char *v) {
     //* 那么这里就使用type实现,先从v判断类型是什么
     if (strlen(k) == 0 || strlen(v) == 0) {
         printf("key or value unfair\n");
-        return -1;
+        exit(-2);
     }
     if (is_integer(v)) {
         printf("当前请求设置的是integer\n");

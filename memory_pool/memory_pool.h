@@ -30,14 +30,10 @@
 #define ALIGNMENT 8//* 这里对齐应该是2的倍数
 #define ALIGN(size) ((size + (ALIGNMENT - 1)) & (~(ALIGNMENT - 1)))
 
-typedef struct mem_block mem_block_t;
-typedef struct fixed_size_pool fixed_size_pool_t;
+// typedef struct mem_block mem_block_t;
+// typedef struct fixed_size_pool fixed_size_pool_t;
 
-extern fixed_size_pool_t* fixed_pool_create(size_t block_size, size_t block_count);
-extern void* fixed_pool_alloc(fixed_size_pool_t*);
-extern void fixed_pool_free(fixed_size_pool_t*, void*);
-extern void fixed_pool_destroy(fixed_size_pool_t*);
-extern void fixed_pool_stats(fixed_size_pool_t*);
+
 
 
 
@@ -138,5 +134,14 @@ typedef struct hierarchical_memory_pool {
     _Atomic size_t medium_allocations;
     _Atomic size_t large_allocations;
 } hierarchical_pool_t;
+
+
+extern fixed_size_pool_t* fixed_pool_create(size_t block_size, size_t block_count);
+extern void* fixed_pool_alloc(fixed_size_pool_t*);
+extern void fixed_pool_free(fixed_size_pool_t*, void*);
+extern void fixed_pool_destroy(fixed_size_pool_t*);
+extern void fixed_pool_stats(fixed_size_pool_t*);
+
+
 
 #endif

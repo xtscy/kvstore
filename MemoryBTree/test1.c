@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 btree_t *g_tree = NULL;
-#define t 2
+#define t 64
 
 
 // insert test
