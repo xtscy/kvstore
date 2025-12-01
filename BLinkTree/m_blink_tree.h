@@ -33,6 +33,19 @@ typedef struct btree_node_s {
     // *但是这里有个问题，如果我要搜素的节点被某个insert操作，导致目标键所在的节点分裂
     //* 这里的关键是原目标节点的high_key和right_sibing多久更新，其实这里键已经在当前节点，那么主要是high_key
     //* 如果在split函数执行完前，并未更改high_key那么就会在当前原节点查找,那么就是split上下文的原节点元信息的更新如何更新的问题
+    //* 这里是在更新前设置
+    //* 这里主要是修复，如果分裂节点元信息还未更新完成的情况
+    //* 如果未更新完成是否会有并发问题
+
+    //? 分裂标志和元信息是否可用
+    //? 是否需要两个标志
+    //? 这里使用meta
+    //? 当更改元信息在最开始就让meta失效
+    // atomic_bool being_split;
+    atomic_bool meta_valid;
+
+//* 64分页，避免false sharing
+
     _Atomic(btree_node_t*) right_sibling;
     _Atomic(int) high_key;
     
