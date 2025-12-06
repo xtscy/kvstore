@@ -1,6 +1,6 @@
 #include "memory_pool.h"
 
-
+fixed_size_pool_t *global_fixed_pool = {0};
 //* 如果获取失败默认为4096(4KB)
 size_t get_sys_page_size() {
     size_t page_size = 0;

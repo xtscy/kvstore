@@ -46,8 +46,9 @@
 #ifndef __NTY_COROUTINE_H__
 #define __NTY_COROUTINE_H__
 
-
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 #include <dlfcn.h>
 
 #define _USE_UCONTEXT

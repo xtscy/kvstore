@@ -10,6 +10,7 @@
 #include "threadpool/threadpool.h"
 #include "RingBuffer/ring_buffer.h"
 #include "./memory_pool/memory_pool.h"
+#include "./ARENA_ALLOCATOR/stage_allocator.h"
 
 #define BUFFER_LENGTH		1024
 

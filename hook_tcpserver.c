@@ -45,7 +45,7 @@ void server_reader(void *arg) {
 		} else if (ret == 0) {	
 			close(fd);
 			break;
-		} else if (ret == -1) {
+		} else  {
 			close(fd);
 			printf("recv failed\n");
 			break;

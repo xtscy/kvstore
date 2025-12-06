@@ -1,3 +1,5 @@
+#ifndef __THREAD_POOL__
+#define __THREAD_POOL__
 #include <stdio.h>
 #include <pthread.h>
 #include <stdint.h>
@@ -7,18 +9,32 @@
 #include "../lock_free_ring_buf/lock_free_ring_buf.h"
 #include <stdatomic.h>
 #include <unistd.h>
+#include <semaphore.h>
 
 #define THREAD_POOL_SUCCESS     0x01
 #define THREAD_POOL_ERROR       0x00
 #define MAX_GLOBAL_QUEUE_NUM    6
+#define GLOBAL_TASK_THREADS     3
 
 // Worker线程结构
-typedef struct {
-    pthread_t thread_id;           // 线程ID
+typedef struct worker_s{
+    volatile pthread_t thread_id;           // 线程ID
     int worker_id;                 // Worker的标识符
     atomic_size_t task_count;     // 当前任务数（用于统计）
     lock_free_ring_buffer queue;  // 每个Worker自己的无锁环形队列
+    sem_t sem;
+
+    // wake_sign的初始值设置为1，用于同步阻塞逻辑
+    sem_t wake_sign;
 } worker_t;
+
+typedef struct global_worker_s{
+    volatile pthread_t thread_id;
+    int global_id;
+    pthread_mutex_t g_mutex;
+} global_worker_t
+
+// 这里可以用一个如果全局任务非常多,但是当前线程任务数少,那么就可以让当前线程去帮忙处理全局队列的任务
 
 // 全局线程池
 typedef struct thread_pool_s {
@@ -30,7 +46,7 @@ typedef struct thread_pool_s {
     // 所以这里使用1个原子变量来记录消费者的轮询
     atomic_uint produce_next_queue_idx;//* 生产者无线程安全
     atomic_uint consume_next_queue_idx;//* 消费者有线程安全问题
-    int current_queue_num;
+    int current_queue_num;  
     int max_queue_num;
     //* 这里先直接在初始化时就去初始化全局队列。
     //* 后续可以不初始化所有全局队列，并且全局队列数量数量可以更多
@@ -39,10 +55,19 @@ typedef struct thread_pool_s {
     lock_free_ring_buffer global_queue[MAX_GLOBAL_QUEUE_NUM];
     worker_t *workers;             // Worker数组
     int worker_count;              // Worker数量
+    int (*scheduler_strategy)(void);
     atomic_uint next_worker_id;    // 用于轮询策略
+    
+    global_worker_t *global_workers;
+    atomic_uint global_pos;
+    int global_worker_nums;
+    atomic_int sleep_num;// 当前有多少个全局线程正在睡眠
+    pthread_cond_t global_cond;
+    sem_t sem[MAX_GLOBAL_QUEUE_NUM];
+    // 用sleep_num判断是否需要sinal,全局线程睡眠在1个条件变量上
+
     // 策略函数指针
     //* 这里使用面向对象的思想
-    int (*scheduler_strategy)(void);
 } thread_pool_t;
 
 
@@ -52,3 +77,5 @@ extern uint8_t Thread_Pool_Run();
 extern int Thread_Scheduler(void);
 extern thread_pool_t g_thread_pool;
 extern int Process_Data_Task(task_t *t);
+
+#endif

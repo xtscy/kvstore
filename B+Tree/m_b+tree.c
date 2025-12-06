@@ -1,4 +1,4 @@
-#include "m_blink_tree.h"
+#include "m_b+tree.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -12,13 +12,6 @@ static btree_node_t* create_node(bool is_leaf, int t) {
         printf("malloc node failed \n");
         exit(-1);
     }
-
-    pthread_rwlock_init(&node->rw_lock,NULL);
-    atomic_store_explicit(&node->meta_valid, false, memory_order_relaxed);
-    // atomic_store_explicit(&node->being_split, false, memory_order_relaxed);
-    atomic_store_explicit(&node->high_key, __INT32_MAX__, memory_order_relaxed);
-    atomic_store_explicit(&node->right_sibling, NULL, memory_order_release);
-
 
     node->keys = (int*)malloc(sizeof(int) * (2 * t - 1));
     if (!node->keys) {
@@ -52,15 +45,12 @@ btree_t* btree_create(int t) {
         printf("malloc btree failed\n");
         exit(-1);
     }
-    
-    pthread_rwlock_init(&btree->rw_lock, NULL);
-    btree_node_t *node = create_node(true, t);
-    atomic_store_explicit(&btree->root, node, memory_order_release);
-    
+    btree->root = create_node(true, t);
     if (!btree->root) {
         printf("create failed\n");
         exit(-1);
     }
+
     btree->t = t;
     btree->max_key = 2 * t - 1;
     btree->min_key = t - 1;
@@ -68,19 +58,27 @@ btree_t* btree_create(int t) {
 }
 
 // 调用者保证叶子节点未满
-//* 节点锁由外部进行锁定，这里直接插入就行
-// 这里区间节点的right_sibling和high_key都不变所以不用更改
-static bool insert_into_leaf(btree_node_t* node, int key) {
+static bool insert_into_leaf(btree_node_t* node, int key, void* data) {
     assert(node->is_leaf);
 
     int insert_index = node->num_keys - 1;
     while (insert_index >= 0 && key < node->keys[insert_index]) {
 
         node->keys[insert_index + 1] = node->keys[insert_index];
+        node->u.leaf.data_ptrs[insert_index + 1] = node->u.leaf.data_ptrs[insert_index];
         insert_index--;
     }
-
+    if (insert_index > -1 && node->keys[insert_index] == key) {
+        node->keys[insert_index] = key;
+        // 这里key值相等，把原本的data释放掉后再赋值，确保内存不泄露
+        free(node->u.leaf.data_ptrs[insert_index]);
+        node->u.leaf.data_ptrs[insert_index] = data;
+        return true;
+    }
     node->keys[insert_index + 1] = key;
+    // 这里key不相等那么就没有要释放的指针
+    node->u.leaf.data_ptrs[insert_index + 1] = data;
+    
     node->num_keys++;
     return true;
 }
@@ -89,14 +87,11 @@ static bool insert_into_leaf(btree_node_t* node, int key) {
 // 分裂节点，把中间键拿到parent,index是当前键插入到parent的哪个位置
 // 所以parent的num_keys > index
 // child作为当前的左孩子
-//! 这里parent应该在外部锁定，否则如果多个线程触发多个分裂操作，首先就是会破坏数据，导致运行错误
-//! 插入操作用写锁
-
 static void split_child(btree_node_t* parent, int index, btree_node_t* left_child, int t) {
 
     // 这里不需要判断parent是否是满，因为insert保证了路径上的节点如果满都会被split
     // 这里调用者保证，当前child一定满，才会调用split_child
-    // 创建新节点
+        // 创建新节点
     bool is_leaf = left_child->is_leaf;
     btree_node_t* right_child = create_node(is_leaf, t);
     // printf("right_node->is_leaf %d\n", right_child->is_leaf);
@@ -104,81 +99,33 @@ static void split_child(btree_node_t* parent, int index, btree_node_t* left_chil
         printf("malloc new_child failed\n");
         exit(-2);
     }
-    
+
     // 先构建right_child
     // 把left_child的键拿到right_child中
-    //* 元信息的设置和修改 
-    //* 这里是分裂当前left_child，那么left_child和新创建的right_child
-    //* 都需要设置元信息吗，当前right_child是新创建的还没有链入树中
-    
-    //这里中间键上提，parent节点的high_key值由parent的父节点决定,right_sibling由parent的右兄弟决定
-    // 这里并不会改变parent节点的位置即右兄弟不变父节点的键值不变
-    // 那么high_key不变，right_sibling也不变
-    //? 那么需要更改的就是left_child，因为创建了新的right_child即left_child的右兄弟
-    //? 那么就需要设置right_child的元信息为原本left_child的元信息，然后再用right_child更新left_child的元信息
-    //! 这里当某个操作判断being_split为真，到达新创建的节点时，为了数据一定存在，避免设置了状态还未搬动数据
-    //! 设置新节点的分裂标志，这样当到达新节点时依然可以使用元信息继续查询
-    //! 那么在标志设置前对新创建的节点加写锁，这样由于搜索操作最后的遍历需要加读锁遍历，就会被阻塞
-    //! 从而保证数据的一致性，这里如果接受搜索失败，那么这里就可以不用给新节点加写锁，这样的话读操作
-    //! 就可以直接读取，但是可能数据还没有搬运，导致没有搜索到，如果目标在当前节点或者当前节点的子节点的话
-    //! 即在分裂标志设置前对新节点加写锁即可，但是就会降低共同的性能，因为当前线程如果直接失败当前任务即完成
-    //! 会更少的占用cpu资源
-    
-    //? 这里有两个标志需要设置，那么由于left_child依赖于right_child
-    //? 则先设置right_child再设置left_child
-    //? 这里right_child和left_child都需要加写锁，为了数据可见的强一致性
-    // pthread_rwlock_wrlock
-    // 这里parent已经在外部写锁定，所以不会有原子变量的竞争问题
-    // 每一时刻只有一个insert对于当前涉及路径
-    
-    // 原子更新 ------
-    // 
-    // atomic_store_explicit(&right_child->being_split, true, memory_order_relaxed);
-    // atomic_store_explicit(&left_child->being_split, true, memory_order_relaxed);
-    
-    atomic_store_explicit(&left_child->meta_valid, false, memory_order_relaxed);
-    int temp_key = atomic_load_explicit(&left_child->high_key, memory_order_relaxed);
-    atomic_store_explicit(&right_child->high_key, temp_key, memory_order_relaxed);
-    btree_node_t *temp_node = = atomic_load_explicit(&left_child->right_sibling, memory_order_relaxed);
-    atomic_store_explicit(&right_child->right_sibling, temp_node, memory_order_relaxed); 
-    //? 这里使用了left_child。这里有可能有删除操作涉及到left_child
-    
-    atomic_store_explicit(&left_child->high_key, temp_key, memory_order_relaxed);
-    atomic_store_explicit(&left_child->right_sibling, right_child, memory_order_relaxed);
-    atomic_store_explicit(&left_child->meta_valid, true, memory_order_release);
 
-//这里肯定需要锁right，但是left只有一个num_keys的修改，这里是否需要给left_child加锁呢
-// 这里外部parent锁定，并且当前left_child要分裂，搜索操作不会更改数据
-// 这里删除操作是否会影响呢，这里删除操作也是锁parent所以也不会影响
-// 那么这里其实可以不锁left_child, 这样搜索目标在当前分裂节点可以直接搜索，并且数据没有被覆盖
-// 因为其他写操作肯定会被阻塞,这里num_keys变量用原子最好,但是下面有release所以保证了可见性
-    pthread_rwlock_wrlock(&right_child->rw_lock);
-    // 最后更改左子节点的个数
-    // 这里如果还没有设置分裂标志，那么search是否使用元信息
-    
-    
-    // ------ 原子更新
-    
-//todo lock
-// 下面复制left_child的数据是否需要这个写锁
-// 因为Left_child只需要改变键的个数
-// 这里parent外部肯定写锁，那么其他操作必然阻塞
-pthread_rwlock_wrlock(&left_child->rw_lock);
-
-//? 这里的keys的更改肯定是需要在锁内的
-    left_child->num_keys = t - 1;
-    temp_key = left_child->keys[t - 1];
-    
-//* 移动数据的操作 -------------
+    // 无论是不是叶子都需要把左节点中间键以右的全部放到right_child中
     for (int i = 0; i < t - 1; i++) {
         right_child->keys[i] = left_child->keys[t + i];
     }
 
+    // 如果是内部节点中间键直接上提，如果是叶子节点中间键复制到parent节点中
+
+    
     if (!is_leaf) {
-        // 不是叶子节点，把left_child的children拿到right_child
-        for (int i = 0; i < t; i++) {  
-            right_child->children[i] = left_child->children[t + i];
+        // 内部节点，把left_child的children拿到right_child
+        for (int i = 0; i < t; i++) {
+            right_child->u.internal.children[i] = left_child->u.internal.children[t + i];
         }
+        left_child->num_keys = t - 1;
+    } else {
+        // 更改right_child的right和data_ptrs
+        right_child->u.leaf.right = left_child->u.leaf.right;
+        left_child->u.leaf.right = right_child;
+        // 移动数据data_ptrs
+        for (int i = 0; i < t; i++) {
+            right_child->u.leaf.data_ptrs[i] = left_child->u.leaf.data_ptrs[t + i];
+        }
+        left_child->num_keys = t;
     }
     right_child->num_keys = t - 1;
     // 构造完right_child后, 更改parent
@@ -191,78 +138,55 @@ pthread_rwlock_wrlock(&left_child->rw_lock);
     // parent不可能是叶子节点，外部调用保证，所以这里肯定需要move parent children array
     // children
     for (int i = parent->num_keys + 1; i > index + 1; i--) {
-        parent->children[i] = parent->children[i - 1];
+        parent->u.internal.children[i] = parent->u.internal.children[i - 1];
     }
-    parent->children[index + 1] = right_child;
+    parent->u.internal.children[index + 1] = right_child;
     parent->num_keys++;
     // parent的children更改完成
 
-
-    //todo 这里只解锁left_child, 这里由于分裂，next未定，先锁next再解锁当前parent
-    //todo 即保证锁到下一个节点再解锁上一个节点，加锁顺序性保证了当前操作尽可能的推进，因为这里一旦写，那么其他的写会被阻塞，读不会
-    //todo 也就保证了当前插入数据在（涉及当前节点）其他写操作之前
-    pthread_rwlock_unlock(&left_child->rw_lock);    
-//* -------------移动数据的操作
+    // 最后更改左子节点的个数
+    // 这里判断内部还是叶子节点
+    
+    // left_child->num_keys = t - 1;
     //
 }
 
 
-
-// 这里的插入逻辑
-// 先锁住tree的root根指针以便于拿到最新值
-// 然后再锁根节点，至于是读锁还是写锁，由当前的方法而定
-// 这里先锁住下个节点，再释放上一个锁
-// 由于顺序性，使得当前操作不会有饥饿的情况
-// 因为锁住了上一个节点，如果当前是写操作那么其他操作想要锁上一个节点的时候
-// 就会锁阻塞
-bool btree_insert(btree_t* tree, int key) {
+bool btree_insert(btree_t* tree, int key, void *data) {
 
     // 从根节点开始，直到遍历到叶子节点
     // 在叶子节点进行insert_into_leaf，并且保证叶子节点非满
+
     if (!tree) {
         printf("tree null\n");
         exit(-3);
     }
+
     // while遍历，但是split需要上层节点信息，所以从当前节点提前判断要进入的子节点是否需要split
     // 这里从root进去，所以需要先处理root是否需要split
     if (!tree->root) {
         printf("root is NULL\n");
         exit(-3);
     }
-
-
-    //* 锁根指针,写锁因为可能会更新根指针
-    pthread_rwlock_wrlock(&tree->rw_lock);
-    
-    btree_node_t* current = tree->root;
-    
+    // printf("----------------1.2-----------------\n");
     int t = tree->t;
     int max = 2 * t - 1;
-
+    btree_node_t* current = tree->root;
     // 这里判断根节点是否满，如果满把中间键上提到新的root节点
     if (current->num_keys == 2 * t - 1) {
-        btree_node_t* new_root = create_node(false, t);// new root 不需要锁,还没连接进树结构
+        // printf("------------1.3-----------------\n");
+        btree_node_t* new_root = create_node(false, t);
+        // printf("up malloc\n");
         // 让new_root指向当前root
-        new_root->children[0] = current;
-        pthread_rwlock_wrlock(&current->rw_lock);//* 分裂锁根节点
-        // 这里可以不用锁新节点，所以多传一个参数用来控制是否需要锁parent节点
+        new_root->u.internal.children[0] = current;
+        // printf("-----------split child------------\n");
         split_child(new_root, 0, current, t);
-
-        if ()
-
-        pthread_rwlock_unlock(&current->rw_lock);
+        // printf("------------split child end----------------\n");
         tree->root = new_root;
         current = new_root;
+        // printf("------------1.3end-----------\n");
     }
 
-
-//* 解锁根指针锁
-    pthread_rwlock_unlock(&tree->rw_lock);
-    
-//* 这里同样先去使用optimstic的contain函数
-//* 因为写操作的开销在多线程下的频繁加锁是开销极大的
-
-    
     // printf("current->is_leaf%d, current->num_keys%d, current->keys[0]:%d\n",
         // current->is_leaf, current->num_keys, current->keys[0]);
 
@@ -278,15 +202,11 @@ bool btree_insert(btree_t* tree, int key) {
         int index = 0;
         // printf("begin run\n");
         while (index < current->num_keys && key > current->keys[index]) index++;
-
-        //多线程下的安全判断
-        if (current->keys[index] == key) return false;
-
         // printf("run end\n");
 
         //需要插入的区间的索引也是index,因为要插入的位置是当前键的左边的区间
         // 前驱一一对应，所以索引也是相同的
-        btree_node_t* child = current->children[index];
+        btree_node_t* child = current->u.internal.children[index];
         // printf("index:%d\n", index);
         if (!child) {
             printf("child is NULL\n");
@@ -308,7 +228,7 @@ bool btree_insert(btree_t* tree, int key) {
                 index++;
                 // printf("index ++\n");
             }
-            child = current->children[index];
+            child = current->u.internal.children[index];
         }
         // printf("key:%d, index:%d\n", key, index);
         current = child;
@@ -316,7 +236,7 @@ bool btree_insert(btree_t* tree, int key) {
         // printf("----------------1.5---------------\n");
     }
     // 叶子节点，且数据不可能最多
-    insert_into_leaf(current, key);
+    insert_into_leaf(current, key, data);
     return true;
 }
 
@@ -326,13 +246,6 @@ bool btree_contains(btree_t* tree, int key) {
         perror("tree is unfair\n");
         return false;
     }
-
-    
-// 这种contains可以在当前数据存在(可能正在被删除)的情况下也返回false
-// 这样至少能够在数据存在的时候一定返回false，减少insert开销
-
-//这里可能值目前不存在但是其他操作正在插入该数据，但是contains判断不存在
-//所以还需要在插入操作中多一个判断去判断值是否相等，相等则返回false
 
     btree_node_t* current = tree->root;
     while (current) {
@@ -354,7 +267,7 @@ bool btree_contains(btree_t* tree, int key) {
         // } else {
         //     current = current->children[i];
         // }
-        current = current->children[i];
+        current = current->u.internal.children[i];
     }
 
     return false;
@@ -449,46 +362,20 @@ static int find_key_idx(btree_node_t* node, int key) {
 
 // node是当前所在节点，idx是当前要删除的键的索引位置
 // 这里找前驱然后返回前驱，然后在外部函数中处理
-// 这里需要处理'往下走时，可能当前下面的节点正在执行写操作(增加或者删除)
-// 这里可能当前删除操作在对同一个节点的删除操作前
-// 所以在删除中最开始先判断是否有节点存在，然后在删除内部还需要保证节点不存在的操作
-
-// 这里的拿前驱,可能增加的数据是最新的前驱,如果拿到的是旧数据
-// 这里可以优化，直接返回值和指向前驱所在的叶子节点
-// 然后返回，在删除操作中直接删除当前节点，这里后续优化
-// 这里的向下过程的加锁是完全有必要的，为了确保拿到最新的写操作之后的前驱的最新值
 static int get_precursor(btree_node_t* node, int idx) {
 
     if (!node) {
         printf("node is null at get_successor\n");
         exit(-2);
-    }//? node不是叶子外部保证(这里外部如果是叶子节点就直接删除了)
-    // //error（这里是用remove前的contain但是多线程下contain是乐观逻辑所以不能保证）
-    //? 这里依次加解锁，获得最新前驱
-    // node是在外部进行lock的,进来就是被lock的状态
-    // 这里有可能前面的删除操作正好使得叶子节点为空，那么就需要去具体判断remove的逻辑
-    // 这里remove在调用remove_node删除之后,才会去
-    // 并且删除操作不会锁定之前的节点，
-    btree_node_t* current = node->children[idx];
-    btree_node_t* next = NULL;
-    pthread_rwlock_wrlock(&current->rw_lock);
-    // pthread_rwlock_unlock(&node->rw_lock);
-    while (!current->is_leaf) {
-        next = current->children[current->num_keys];
-        pthread_rwlock_wrlock(&next->rw_lock);
-        pthread_rwlock_unlock(&current);
-        current = next;
     }
-    int ret = current->keys[current->num_keys - 1];
-    // 这里可以在这直接解锁，其他写操作在当前删除操作之后
-    // 也可以不解锁，优化成返回该叶子节点的指针，然后外部直接删除,在删除之前判断该节点
-    // 这里直接解锁
-    pthread_rwlock_unlock(&current);
-    return ret;
+    btree_node_t* current = node->children[idx];
+    while (!current->is_leaf) {
+        current = current->children[current->num_keys];
+    }
+    return current->keys[current->num_keys - 1];
 }
 
 // 拿到后继的最小值节点
-// 后继的逻辑和上面的前驱一致
 static int get_successor(btree_node_t* node, int idx) {
 
     if (!node) {
@@ -496,18 +383,10 @@ static int get_successor(btree_node_t* node, int idx) {
         exit(-2);
     }
     btree_node_t* current = node->children[idx + 1];
-    btree_node_t* next = NULL;
-    pthread_rwlock_wrlock(&current->rw_lock);
     while (!current->is_leaf) {
-        next = current->children[0];
-        pthread_rwlock_wrlock(&next->rw_lock);
-        pthread_rwlock_unlock(&current->rw_lock);
-        current = next;
+        current = current->children[0];
     }
-    int ret = current->keys[0];
-    pthread_rwlock_unlock(&current);
-    // 这里外部的node没有解锁，在向下时还是需要获取锁，因为这里，可能有其他读锁正在做读操作，所以目前还是按照原始路径层层向下加锁
-    return ret;
+    return current->keys[0];
 }
 
 
@@ -640,9 +519,6 @@ static void borrow_from_right(btree_node_t* parent, int idx) {
 }
 
 // idx为要填充的区间的索引
-// 这里传入前，parent在外部已经锁定
-// 其中使用的merge_node也是涉及parent
-// 对于左右兄弟，这里在内部涉及时再去锁定
 static btree_node_t* fill_node(btree_node_t* parent, int idx, int t) {
 
     btree_node_t* target = parent->children[idx];
@@ -651,19 +527,15 @@ static btree_node_t* fill_node(btree_node_t* parent, int idx, int t) {
     // 下沉这里特殊判断最后一个位置
 
     if (idx > 0 && parent->children[idx - 1]->num_keys >= t) {
-        //lock
         borrow_from_left(parent, idx);
         return parent->children[idx];
     }
     if (idx < parent->num_keys && parent->children[idx + 1]->num_keys >= t) {
-        //lock
         borrow_from_right(parent, idx);
         return parent->children[idx];
     }
 
     if (idx == parent->num_keys) {
-        pthread_rwlock_wrlock(&parent->children[idx - 1]->rw_lock);
-        //merge_node内部不加锁，为了统一使用同一个merge_node
         merge_node(parent, idx - 1);
         return parent->children[idx - 1];
     }
@@ -674,9 +546,7 @@ static btree_node_t* fill_node(btree_node_t* parent, int idx, int t) {
 }
 
 
-
-//? 删除锁parent(cur),这里merge调用前肯定需要锁定当前cur
-static bool remove_node(btree_node_t* node, int key, int t) {
+static void remove_node(btree_node_t* node, int key, int t) {
 
     if (!node) {
         printf("node is null in remove\n");
@@ -685,9 +555,6 @@ static bool remove_node(btree_node_t* node, int key, int t) {
 
     btree_node_t* current = node;
     int c_idx = -1;
-    //*? 可以先用读锁，再升级写锁
-    //*? 也可以直接用写锁,这里先用写锁
-    pthread_rwlock_wrlock(&current->rw_lock);
     while (true) {
         c_idx = find_key_idx(current, key);
         btree_node_t* left_child = NULL;
@@ -706,7 +573,6 @@ static bool remove_node(btree_node_t* node, int key, int t) {
                         current->keys[i - 1] = current->keys[i];
                     }
                     current->num_keys--;
-                    pthread_rwlock_unlock(&current->rw_lock);
                     return;
                 }
                 else {
@@ -741,11 +607,7 @@ static bool remove_node(btree_node_t* node, int key, int t) {
         // 都执行相同的逻辑去到该子区间节点
         // 这里不需要判断如果是叶子节点那么child不存在的情况
         // 因为删除的前提一定是该键存在
-        // ?下去之前先锁定
         btree_node_t* next = current->children[c_idx];
-        // 读取用读锁,这里直接用写锁，这里如果内部升级，数据状态可能改变，读锁和写锁之间有时间窗口，并且可能写锁竞争失败，可能有其他线程也需要该写锁
-        // 同时还有内部就算升级成功，也可能有其他读锁存在，这里直接加写锁，减少当前涉及节点的读锁锁定
-        pthread_rwlock_wrlock(&next->rw_lock);
         if (next->num_keys < t) {
             next = fill_node(current, c_idx, t);
         }
@@ -756,7 +618,7 @@ static bool remove_node(btree_node_t* node, int key, int t) {
 
 bool btree_remove(btree_t* tree, int key) {
 
-    if (!tree || !tree->root || tree->root->num_keys == 0) {
+    if (!tree || !tree->root) {
         printf("tree is null at btree_remove\n");
         exit(-2);
     }
@@ -766,12 +628,10 @@ bool btree_remove(btree_t* tree, int key) {
     }
     // 允许根节点键个数大于0就行，所以这里不需要判断根节点是否需要填充
     btree_node_t* root = tree->root;
-    //
-    bool ret = remove_node(root, key, tree->t);
+    remove_node(root, key, tree->t);
     // 根节点键个数为0，降低树高度
-    // 这里叶子节点
     if (root->num_keys == 0 && !root->is_leaf) {
-        // 这里如果是最后一6个键,没有child，tree->root将会指向NULL
+        // 这里如果是最后一个键,没有child，tree->root将会指向NULL
         // 根节点的最后一个键下沉，说明有children,那么root指向child
         tree->root = root->children[0];
         destroy_node(root);
@@ -827,7 +687,6 @@ static void inorder_traversal_test_array(btree_node_t* node, int *test_array) {
         if (i != node->num_keys) {
             // printf("%d ", node->keys[i]);
             if (test_array[test_idx++] == node->keys[i]) {
-
                 printf("%d ", node->keys[i]);
             } else {
                 printf("%d 所在位置错误\n", node->keys[i]);

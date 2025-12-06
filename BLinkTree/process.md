@@ -69,10 +69,14 @@ split涉及数据的移动和元信息的修改
 
 
 current:
-1.增加remove的precursor和successor的锁逻辑
-2.修改insert的加锁逻辑
-3.修改remove的加锁逻辑
-4.增加remove的fill_node填充节点及其内部加锁逻辑
+1. 增加remove的precursor和successor的锁逻辑
+    1完成了precursor和successor的锁逻辑
+2. split_child的锁设计
+    当前先弄split_child
+3. 修改insert的加锁逻辑
+    现在开始实现这个
+3. 修改remove的加锁逻辑
+4. 增加remove的fill_node填充节点及其内部加锁逻辑
 
 先完成第一个
 
@@ -83,7 +87,7 @@ btree_remove调用的remove_node
 optimistic的contain所以值在删除的时候可能不存在
 那么remove没删除成功则返回true
 在remove_node中增加判断逻辑
-    2.  ```
+      ```
 bool ret = remove_node(root, key, tree->t);
     // 根节点键个数为0，降低树高度
     // 这里叶子节点
@@ -118,3 +122,34 @@ bool ret = remove_node(root, key, tree->t);
 
      当前进度，precursor可以直接访问child无需判断child为空的情况
      下一步检查加锁逻辑，和最后的孩子节点的lock不解锁
+
+
+2. **split_child**
+    atomic_bool meta_valid;
+    虽然这里当更改元信息在最开始就让meta失效
+    但是可能有其他的读线程
+    这里使用元信息也是为了尽可能的不去阻塞读操作
+    所以这里split_child的设计又和读操作进行深度捆绑了
+    那先看看读操作
+    btree_contains是实现乐观判断
+    这里就先实现contains
+    1. contains
+    这里有几种策略
+    只使用元信息，如果不可用循环
+
+
+3. **修改insert的逻辑**
+这里在处理根节点满的代码时，
+这里去判断值在左边还是右边,不需要在内部对当前current解锁
+这样如果刚好在左边就少1次解锁
+如果是右边再去锁右边然后解锁左边
+这里由于有new_root所以可以直接访问左边
+但是这里split_child的内部逻辑最好梳理清楚
+
+这里在根节点不满的else里再去写不满时的对crrent的加锁逻辑
+
+
+
+
+
+

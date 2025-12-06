@@ -9,6 +9,7 @@
 #include "./lock_free_ring_buf/lock_free_ring_buf.h"
 #include "memory_pool/memory_pool.h"
 
+
 #define READ_CACHE_SIZE 1024*16
 #define RING_BUF_SIZE 1000
 #define KV_ARRAY_SIZE 1000
@@ -75,11 +76,11 @@ typedef enum value_type_e value_type_t;
 // typedef struct task_s task_t;
 
 extern int KV_SET(char *k, char *v);
-extern int KV_GET(char *k, int *pos);
+extern int KV_GET(char *k, bpt::value_t* pos);
 extern int KV_DEL(char *k);
 extern int KV_INCR(char *k);
 extern int KV_DECR(char *k);
 // extern int Process_Task(connection_t *c);
-extern int Process_Data_Task(task_t *);
+extern int Process_Data_Task(block_alloc_t *block);
 extern int token_to_order(char *buf);
 #endif

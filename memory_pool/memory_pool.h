@@ -1,6 +1,9 @@
+#ifndef _GUN_SOURCE
+#define _GNU_SOURCE
+#endif
+
 #ifndef _MEMORY_POOL_
 #define _MEMORY_POOL_
-#define _GNU_SOURCE
 #include <errno.h>
 #include <string.h>
 #include <stddef.h>
@@ -37,7 +40,7 @@
 
 
 
-//todo Level 1: 固定大小池（32B, 64B, 128B, 256B）
+//todo Level 1: 固定大小池（8B, 32B, 64B, 128B, 256B）
 
 //todo Level 2: 动态池（256B-4KB）
 
@@ -141,7 +144,7 @@ extern void* fixed_pool_alloc(fixed_size_pool_t*);
 extern void fixed_pool_free(fixed_size_pool_t*, void*);
 extern void fixed_pool_destroy(fixed_size_pool_t*);
 extern void fixed_pool_stats(fixed_size_pool_t*);
-
+extern fixed_size_pool_t *global_fixed_pool;
 
 
 #endif

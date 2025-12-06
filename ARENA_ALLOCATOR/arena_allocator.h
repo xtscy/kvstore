@@ -9,7 +9,7 @@
 #include <stdint.h>
 #include <stdatomic.h>
 #include <stdbool.h>
-#include "../Sequence_lock/Sequence_lock.h"
+// #include "../Sequence_lock/Sequence_lock.h"
 
 #define STAGE_DATA_SIZE 2048 * 5
 
@@ -47,8 +47,9 @@ typedef struct block_alloc_s {
     // 这里由于stage有reference_count所以，还需要一个指向stage的指针
     // 当当前块不用时，可以调用该stage的reference_count--
     stage_allocator_t *allocator;
+    int conn_fd;
 } block_alloc_t;
-
+ 
 //create stage
 extern stage_t *stage_create(size_t);
 // alloc bytes from stage

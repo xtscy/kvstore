@@ -1,9 +1,11 @@
 #include "kv_task.h"
 #include <errno.h>
+#include "BPlusTree/bpt_c.h"
 
 
-extern kv_type_t* g_kv_array;
 
+// extern kv_type_t* g_kv_array;
+extern btree_handle global_bplus_tree;
 
 
 int is_integer(const char *str) {
@@ -66,29 +68,33 @@ int kv_free(void *p) {
 //*返回0找到有效key，没找到返回-1
 // 这里使用内存池，那么就没有数组访问，而是使用alloc申请块，然后放入块中
 // 这里GET某个key，也是去到内存池中查找
-int KV_GET(char *k, int *pos) {
+int KV_GET(char *key, pbt::value_t* val) {
     printf("3\n");
     printf("GEt key:-> %s\n", k);
+    int ret = btree_search_c(global_bplus_tree, key, val);
+    if (ret == 0)
+        return 0;
+    else return -1;
     // printf("current key:->%s\n", (char*)c->kv_array[0].key);
-    for (int i = 0; i < KV_ARRAY_SIZE; i++) {
-        if (g_kv_array[i].key != NULL){
-            if (strcmp(g_kv_array[i].key, k) == 0) {
-                printf("4\n");
-                if (g_kv_array[i].value == NULL) {
-                    if(kv_free(g_kv_array[i].key) != 0) {
-                        printf("kv_free failed\n");
-                        exit(-1);
-                    }
-                    g_kv_array[i].key = NULL;
-                } else {
-                    *pos = i;
-                    return 0;
-                }
-            }
-        }
-    }
+    // for (int i = 0; i < KV_ARRAY_SIZE; i++) {
+    //     if (g_kv_array[i].key != NULL){
+    //         if (strcmp(g_kv_array[i].key, k) == 0) {
+    //             printf("4\n");
+    //             if (g_kv_array[i].value == NULL) {
+    //                 if(kv_free(g_kv_array[i].key) != 0) {
+    //                     printf("kv_free failed\n");
+    //                     exit(-1);
+    //                 }
+    //                 g_kv_array[i].key = NULL;
+    //             } else {
+    //                 *pos = i;
+    //                 return 0;
+    //             }
+    //         }
+    //     }
+    // }
     //* 遍历完没有找到有效key，那么返回-1
-    return -1;
+    // return -1;/
 }
 
 /// @brief 
@@ -96,7 +102,8 @@ int KV_GET(char *k, int *pos) {
 /// @param k 
 /// @param v 
 /// @return 成功返回0，key或者value非法返回-1
-int KV_SET(char *k, char *v) {
+
+int KV_SET(char *key, char *val) {
 
     //* malloc值到KV_TYPE中，值得不同，类型不同
     //* 分为字符串类型和数值类型，这里数值类型直接用double
@@ -104,52 +111,56 @@ int KV_SET(char *k, char *v) {
     //* 如果直接用存储字符串，那么为了线程安全就只有使用锁
     //* 而锁是性能瓶颈，原子操作比锁快一个数量级
     //* 那么这里就使用type实现,先从v判断类型是什么
-    if (strlen(k) == 0 || strlen(v) == 0) {
+    if (strlen(key) == 0 || strlen(val) == 0) {
         printf("key or value unfair\n");
         exit(-2);
     }
-    if (is_integer(v)) {
+    // 这里向bplustree中写入数据，调用bplus接口,直接向磁盘写入
+    if (is_integer(val)) {
         printf("当前请求设置的是integer\n");
         char *endptr = 0;
-        long value = strtol(v, &endptr, 10);
+        long value = strtol(val, &endptr, 10);
         char *rv = 0;
         int pos = -1;
         long *lp = 0;
-        KV_MALLOC(long, 1, &lp);
-        *lp = value;
-        printf("2\n");
-        if(KV_GET(k, &pos) == 0) {
-            printf("当前key存在,只更改value");
-            if (rv != NULL) {
-                if(kv_free(rv) != 0) {
-                    printf("kv_free failed\n");
-                    exit(-1);
-                }
-            }
+        btree_insert_c(global_bplus_tree, key, value);
+        // btree_insert_c(global_bplus_tree)
+        // KV_MALLOC(long, 1, &lp);
+        // *lp = value;
+        // printf("2\n");
+        return 0;
+        // if(KV_GET(k, &pos) == 0) {
+        //     printf("当前key存在,只更改value");
+        //     if (rv != NULL) {
+        //         if(kv_free(rv) != 0) {
+        //             printf("kv_free failed\n");
+        //             exit(-1);
+        //         }
+        //     }
             
-            // c->kv_array[pos].value = lp;
-            // c->kv_array[pos].type = TYPE_INTEGER;
-            return 0;
-        }
+        //     // c->kv_array[pos].value = lp;
+        //     // c->kv_array[pos].type = TYPE_INTEGER;
+        //     return 0;
+        // }
         //* key不存在
-        char* sp = 0;//*sp: str_pointer
-        printf("SET的KEY不存在");
-        KV_MALLOC(char, strlen(k) + 1, &sp);
-        printf("4\n");
-        memset(sp, 0, strlen(k) + 1);
-        printf("4\n");
-        strcpy(sp, k);
-        printf("sp->:%s\n", sp);
-        for (int i = 0; i < KV_ARRAY_SIZE; i++) {
+        // char* sp = 0;//*sp: str_pointer
+        // printf("SET的KEY不存在");
+        // KV_MALLOC(char, strlen(k) + 1, &sp);
+        // printf("4\n");
+        // memset(sp, 0, strlen(k) + 1);
+        // printf("4\n");
+        // strcpy(sp, k);
+        // printf("sp->:%s\n", sp);
+        // for (int i = 0; i < KV_ARRAY_SIZE; i++) {
             
-            if (g_kv_array[i].key == NULL) {
-                g_kv_array[i].key = (void*)sp;
-                g_kv_array[i].type = TYPE_INTEGER;
-                g_kv_array[i].value = lp;
-                printf("键值写入成功,pos: %d\n", i);
-                return 0;
-            }
-        }
+        //     if (g_kv_array[i].key == NULL) {
+        //         g_kv_array[i].key = (void*)sp;
+        //         g_kv_array[i].type = TYPE_INTEGER;
+        //         g_kv_array[i].value = lp;
+        //         printf("键值写入成功,pos: %d\n", i);
+        //         return 0;
+        //     }
+        // }
 
         //* 给客户端发送完成信息,在上一层完成send
     } else if (is_float(v)) {
@@ -160,6 +171,7 @@ int KV_SET(char *k, char *v) {
     }
     //* 未写入到kv_array
     return -1;
+
 }
 
 

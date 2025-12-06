@@ -1,0 +1,470 @@
+In file included from kv_task.h:10,
+                 from kv_protocal.h:4,
+                 from hook_tcpserver.c:6:
+memory_pool/memory_pool.h:2: warning: "_GNU_SOURCE" redefined
+    2 | #define _GNU_SOURCE
+      | 
+<command-line>: note: this is the location of the previous definition
+In file included from hook_tcpserver.c:2:
+./NtyCo-master/core/nty_coroutine.h: In function ‘nty_schedule* nty_coroutine_get_sched()’:
+./NtyCo-master/core/nty_coroutine.h:272:35: error: invalid conversion from ‘void*’ to ‘nty_schedule*’ {aka ‘_nty_schedule*’} [-fpermissive]
+  272 |         return pthread_getspecific(global_sched_key);
+      |                ~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~
+      |                                   |
+      |                                   void*
+In file included from ./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:6,
+                 from ./lock_free_ring_buf/lock_free_ring_buf.h:10,
+                 from kv_task.h:9:
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h: At global scope:
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:19:5: error: ‘sequence_lock_t’ does not name a type
+   19 |     sequence_lock_t lock;
+      |     ^~~~~~~~~~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:20:5: error: ‘atomic_size_t’ does not name a type
+   20 |     atomic_size_t used;
+      |     ^~~~~~~~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:21:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   21 |     _Atomic(uint8_t) fail_cnt;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:21:20: error: expected ‘;’ at end of member declaration
+   21 |     _Atomic(uint8_t) fail_cnt;
+      |                    ^
+      |                     ;
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:21:22: error: ‘fail_cnt’ does not name a type
+   21 |     _Atomic(uint8_t) fail_cnt;
+      |                      ^~~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:25:5: error: ‘atomic_size_t’ does not name a type
+   25 |     atomic_size_t reference_count;
+      |     ^~~~~~~~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:34:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   34 |     _Atomic(size_t) deref_cnt;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:34:19: error: expected ‘;’ at end of member declaration
+   34 |     _Atomic(size_t) deref_cnt;
+      |                   ^
+      |                    ;
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:34:21: error: ‘deref_cnt’ does not name a type
+   34 |     _Atomic(size_t) deref_cnt;
+      |                     ^~~~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:26:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   26 |     _Atomic(stage_allocator_t*) head;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:26:31: error: expected ‘;’ at end of member declaration
+   26 |     _Atomic(stage_allocator_t*) head;
+      |                               ^
+      |                                ;
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:26:33: error: ‘head’ does not name a type
+   26 |     _Atomic(stage_allocator_t*) head;
+      |                                 ^~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:28:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   28 |     _Atomic(stage_allocator_t*) current;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:28:31: error: expected ‘;’ at end of member declaration
+   28 |     _Atomic(stage_allocator_t*) current;
+      |                               ^
+      |                                ;
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:28:5: error: ‘int allocator_out_s::_Atomic(stage_allocator_t*)’ cannot be overloaded with ‘int allocator_out_s::_Atomic(stage_allocator_t*)’
+   28 |     _Atomic(stage_allocator_t*) current;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:26:5: note: previous declaration ‘int allocator_out_s::_Atomic(stage_allocator_t*)’
+   26 |     _Atomic(stage_allocator_t*) head;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:28:33: error: ‘current’ does not name a type
+   28 |     _Atomic(stage_allocator_t*) current;
+      |                                 ^~~~~~~
+./lock_free_ring_buf/lock_free_ring_buf.h:35:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   35 |     _Atomic(uint64_t) state;         //*低32位head， 高32位tail
+      |     ^~~~~~~
+./lock_free_ring_buf/lock_free_ring_buf.h:35:21: error: expected ‘;’ at end of member declaration
+   35 |     _Atomic(uint64_t) state;         //*低32位head， 高32位tail
+      |                     ^
+      |                      ;
+./lock_free_ring_buf/lock_free_ring_buf.h:35:23: error: ‘state’ does not name a type; did you mean ‘stat’?
+   35 |     _Atomic(uint64_t) state;         //*低32位head， 高32位tail
+      |                       ^~~~~
+      |                       stat
+memory_pool/memory_pool.h:78:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   78 |     _Atomic(mem_block_t*) free_list;
+      |     ^~~~~~~
+memory_pool/memory_pool.h:78:25: error: expected ‘;’ at end of member declaration
+   78 |     _Atomic(mem_block_t*) free_list;
+      |                         ^
+      |                          ;
+memory_pool/memory_pool.h:78:27: error: ‘free_list’ does not name a type
+   78 |     _Atomic(mem_block_t*) free_list;
+      |                           ^~~~~~~~~
+memory_pool/memory_pool.h:89:5: error: ‘_Atomic’ does not name a type
+   89 |     _Atomic size_t free_blocks;
+      |     ^~~~~~~
+memory_pool/memory_pool.h:135:5: error: ‘_Atomic’ does not name a type
+  135 |     _Atomic size_t total_allocations;
+      |     ^~~~~~~
+memory_pool/memory_pool.h:136:5: error: ‘_Atomic’ does not name a type
+  136 |     _Atomic size_t small_allocations;
+      |     ^~~~~~~
+memory_pool/memory_pool.h:137:5: error: ‘_Atomic’ does not name a type
+  137 |     _Atomic size_t medium_allocations;
+      |     ^~~~~~~
+memory_pool/memory_pool.h:138:5: error: ‘_Atomic’ does not name a type
+  138 |     _Atomic size_t large_allocations;
+      |     ^~~~~~~
+kv_task.h:79:28: error: ‘bpt’ has not been declared
+   79 | extern int KV_GET(char *k, bpt::value_t* pos);
+      |                            ^~~
+kv_task.h:79:40: error: expected ‘,’ or ‘...’ before ‘*’ token
+   79 | extern int KV_GET(char *k, bpt::value_t* pos);
+      |                                        ^
+In file included from kv_task.h:10,
+                 from kv_task.c:1:
+memory_pool/memory_pool.h:2: warning: "_GNU_SOURCE" redefined
+    2 | #define _GNU_SOURCE
+      | 
+<command-line>: note: this is the location of the previous definition
+In file included from ./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:6,
+                 from ./lock_free_ring_buf/lock_free_ring_buf.h:10,
+                 from kv_task.h:9:
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:19:5: error: ‘sequence_lock_t’ does not name a type
+   19 |     sequence_lock_t lock;
+      |     ^~~~~~~~~~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:20:5: error: ‘atomic_size_t’ does not name a type
+   20 |     atomic_size_t used;
+      |     ^~~~~~~~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:21:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   21 |     _Atomic(uint8_t) fail_cnt;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:21:20: error: expected ‘;’ at end of member declaration
+   21 |     _Atomic(uint8_t) fail_cnt;
+      |                    ^
+      |                     ;
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:21:22: error: ‘fail_cnt’ does not name a type
+   21 |     _Atomic(uint8_t) fail_cnt;
+      |                      ^~~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:25:5: error: ‘atomic_size_t’ does not name a type
+   25 |     atomic_size_t reference_count;
+      |     ^~~~~~~~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:34:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   34 |     _Atomic(size_t) deref_cnt;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:34:19: error: expected ‘;’ at end of member declaration
+   34 |     _Atomic(size_t) deref_cnt;
+      |                   ^
+      |                    ;
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:34:21: error: ‘deref_cnt’ does not name a type
+   34 |     _Atomic(size_t) deref_cnt;
+      |                     ^~~~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:26:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   26 |     _Atomic(stage_allocator_t*) head;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:26:31: error: expected ‘;’ at end of member declaration
+   26 |     _Atomic(stage_allocator_t*) head;
+      |                               ^
+      |                                ;
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:26:33: error: ‘head’ does not name a type
+   26 |     _Atomic(stage_allocator_t*) head;
+      |                                 ^~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:28:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   28 |     _Atomic(stage_allocator_t*) current;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:28:31: error: expected ‘;’ at end of member declaration
+   28 |     _Atomic(stage_allocator_t*) current;
+      |                               ^
+      |                                ;
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:28:5: error: ‘int allocator_out_s::_Atomic(stage_allocator_t*)’ cannot be overloaded with ‘int allocator_out_s::_Atomic(stage_allocator_t*)’
+   28 |     _Atomic(stage_allocator_t*) current;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:26:5: note: previous declaration ‘int allocator_out_s::_Atomic(stage_allocator_t*)’
+   26 |     _Atomic(stage_allocator_t*) head;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:28:33: error: ‘current’ does not name a type
+   28 |     _Atomic(stage_allocator_t*) current;
+      |                                 ^~~~~~~
+./lock_free_ring_buf/lock_free_ring_buf.h:35:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   35 |     _Atomic(uint64_t) state;         //*低32位head， 高32位tail
+      |     ^~~~~~~
+./lock_free_ring_buf/lock_free_ring_buf.h:35:21: error: expected ‘;’ at end of member declaration
+   35 |     _Atomic(uint64_t) state;         //*低32位head， 高32位tail
+      |                     ^
+      |                      ;
+./lock_free_ring_buf/lock_free_ring_buf.h:35:23: error: ‘state’ does not name a type; did you mean ‘static’?
+   35 |     _Atomic(uint64_t) state;         //*低32位head， 高32位tail
+      |                       ^~~~~
+      |                       static
+memory_pool/memory_pool.h:78:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   78 |     _Atomic(mem_block_t*) free_list;
+      |     ^~~~~~~
+memory_pool/memory_pool.h:78:25: error: expected ‘;’ at end of member declaration
+   78 |     _Atomic(mem_block_t*) free_list;
+      |                         ^
+      |                          ;
+memory_pool/memory_pool.h:78:27: error: ‘free_list’ does not name a type
+   78 |     _Atomic(mem_block_t*) free_list;
+      |                           ^~~~~~~~~
+memory_pool/memory_pool.h:89:5: error: ‘_Atomic’ does not name a type
+   89 |     _Atomic size_t free_blocks;
+      |     ^~~~~~~
+memory_pool/memory_pool.h:135:5: error: ‘_Atomic’ does not name a type
+  135 |     _Atomic size_t total_allocations;
+      |     ^~~~~~~
+memory_pool/memory_pool.h:136:5: error: ‘_Atomic’ does not name a type
+  136 |     _Atomic size_t small_allocations;
+      |     ^~~~~~~
+memory_pool/memory_pool.h:137:5: error: ‘_Atomic’ does not name a type
+  137 |     _Atomic size_t medium_allocations;
+      |     ^~~~~~~
+memory_pool/memory_pool.h:138:5: error: ‘_Atomic’ does not name a type
+  138 |     _Atomic size_t large_allocations;
+      |     ^~~~~~~
+kv_task.h:79:28: error: ‘bpt’ has not been declared
+   79 | extern int KV_GET(char *k, bpt::value_t* pos);
+      |                            ^~~
+kv_task.h:79:40: error: expected ‘,’ or ‘...’ before ‘*’ token
+   79 | extern int KV_GET(char *k, bpt::value_t* pos);
+      |                                        ^
+kv_task.c:8:18: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+    8 | char* order[] = {"set", "get", "del", "incr", "decr"};
+      |                  ^~~~~
+kv_task.c:8:25: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+    8 | char* order[] = {"set", "get", "del", "incr", "decr"};
+      |                         ^~~~~
+kv_task.c:8:32: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+    8 | char* order[] = {"set", "get", "del", "incr", "decr"};
+      |                                ^~~~~
+kv_task.c:8:39: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+    8 | char* order[] = {"set", "get", "del", "incr", "decr"};
+      |                                       ^~~~~~
+kv_task.c:8:47: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+    8 | char* order[] = {"set", "get", "del", "incr", "decr"};
+      |                                               ^~~~~~
+kv_task.c: In function ‘int Process_Data_Task(block_alloc_t*)’:
+kv_task.c:96:42: error: invalid conversion from ‘uint8_t*’ {aka ‘unsigned char*’} to ‘char*’ [-fpermissive]
+   96 |                     token[num_token++] = &block->ptr[prev];
+      |                                          ^~~~~~~~~~~~~~~~~
+      |                                          |
+      |                                          uint8_t* {aka unsigned char*}
+kv_task.c:144:37: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+  144 |                         char* buf = "OK";
+      |                                     ^~~~
+kv_task.c:148:37: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+  148 |                         char *buf = "FALSE";
+      |                                     ^~~~~~~
+kv_task.c:158:57: error: invalid conversion from ‘int*’ to ‘int’ [-fpermissive]
+  158 |                     flag = KV_GET(token[cur_token + 1], &pos);
+      |                                                         ^~~~
+      |                                                         |
+      |                                                         int*
+kv_task.h:79:33: note:   initializing argument 2 of ‘int KV_GET(char*, int)’
+   79 | extern int KV_GET(char *k, bpt::value_t* pos);
+      |                            ~~~~~^~~~~~~
+kv_task.c:166:35: error: ‘t’ was not declared in this scope; did you mean ‘tm’?
+  166 |                             ssend(t->conn_fd, s_buf, strlen(s_buf), 0);
+      |                                   ^
+      |                                   tm
+kv_task.c:173:37: warning: ISO C++ forbids converting a string constant to ‘char*’ [-Wwrite-strings]
+  173 |                         char *buf = "FALSE";
+      |                                     ^~~~~~~
+kv_task.c:174:31: error: ‘t’ was not declared in this scope; did you mean ‘tm’?
+  174 |                         ssend(t->conn_fd, buf, strlen(buf), 0);
+      |                               ^
+      |                               tm
+In file included from kv_task.h:10,
+                 from kv_func.c:1:
+memory_pool/memory_pool.h:2: warning: "_GNU_SOURCE" redefined
+    2 | #define _GNU_SOURCE
+      | 
+<command-line>: note: this is the location of the previous definition
+In file included from ./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:6,
+                 from ./lock_free_ring_buf/lock_free_ring_buf.h:10,
+                 from kv_task.h:9:
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:19:5: error: ‘sequence_lock_t’ does not name a type
+   19 |     sequence_lock_t lock;
+      |     ^~~~~~~~~~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:20:5: error: ‘atomic_size_t’ does not name a type
+   20 |     atomic_size_t used;
+      |     ^~~~~~~~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:21:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   21 |     _Atomic(uint8_t) fail_cnt;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:21:20: error: expected ‘;’ at end of member declaration
+   21 |     _Atomic(uint8_t) fail_cnt;
+      |                    ^
+      |                     ;
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:21:22: error: ‘fail_cnt’ does not name a type
+   21 |     _Atomic(uint8_t) fail_cnt;
+      |                      ^~~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:25:5: error: ‘atomic_size_t’ does not name a type
+   25 |     atomic_size_t reference_count;
+      |     ^~~~~~~~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:34:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   34 |     _Atomic(size_t) deref_cnt;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:34:19: error: expected ‘;’ at end of member declaration
+   34 |     _Atomic(size_t) deref_cnt;
+      |                   ^
+      |                    ;
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:34:21: error: ‘deref_cnt’ does not name a type
+   34 |     _Atomic(size_t) deref_cnt;
+      |                     ^~~~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:26:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   26 |     _Atomic(stage_allocator_t*) head;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:26:31: error: expected ‘;’ at end of member declaration
+   26 |     _Atomic(stage_allocator_t*) head;
+      |                               ^
+      |                                ;
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:26:33: error: ‘head’ does not name a type
+   26 |     _Atomic(stage_allocator_t*) head;
+      |                                 ^~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:28:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   28 |     _Atomic(stage_allocator_t*) current;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:28:31: error: expected ‘;’ at end of member declaration
+   28 |     _Atomic(stage_allocator_t*) current;
+      |                               ^
+      |                                ;
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:28:5: error: ‘int allocator_out_s::_Atomic(stage_allocator_t*)’ cannot be overloaded with ‘int allocator_out_s::_Atomic(stage_allocator_t*)’
+   28 |     _Atomic(stage_allocator_t*) current;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:26:5: note: previous declaration ‘int allocator_out_s::_Atomic(stage_allocator_t*)’
+   26 |     _Atomic(stage_allocator_t*) head;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:28:33: error: ‘current’ does not name a type
+   28 |     _Atomic(stage_allocator_t*) current;
+      |                                 ^~~~~~~
+./lock_free_ring_buf/lock_free_ring_buf.h:35:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   35 |     _Atomic(uint64_t) state;         //*低32位head， 高32位tail
+      |     ^~~~~~~
+./lock_free_ring_buf/lock_free_ring_buf.h:35:21: error: expected ‘;’ at end of member declaration
+   35 |     _Atomic(uint64_t) state;         //*低32位head， 高32位tail
+      |                     ^
+      |                      ;
+./lock_free_ring_buf/lock_free_ring_buf.h:35:23: error: ‘state’ does not name a type; did you mean ‘static’?
+   35 |     _Atomic(uint64_t) state;         //*低32位head， 高32位tail
+      |                       ^~~~~
+      |                       static
+memory_pool/memory_pool.h:78:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   78 |     _Atomic(mem_block_t*) free_list;
+      |     ^~~~~~~
+memory_pool/memory_pool.h:78:25: error: expected ‘;’ at end of member declaration
+   78 |     _Atomic(mem_block_t*) free_list;
+      |                         ^
+      |                          ;
+memory_pool/memory_pool.h:78:27: error: ‘free_list’ does not name a type
+   78 |     _Atomic(mem_block_t*) free_list;
+      |                           ^~~~~~~~~
+memory_pool/memory_pool.h:89:5: error: ‘_Atomic’ does not name a type
+   89 |     _Atomic size_t free_blocks;
+      |     ^~~~~~~
+memory_pool/memory_pool.h:135:5: error: ‘_Atomic’ does not name a type
+  135 |     _Atomic size_t total_allocations;
+      |     ^~~~~~~
+memory_pool/memory_pool.h:136:5: error: ‘_Atomic’ does not name a type
+  136 |     _Atomic size_t small_allocations;
+      |     ^~~~~~~
+memory_pool/memory_pool.h:137:5: error: ‘_Atomic’ does not name a type
+  137 |     _Atomic size_t medium_allocations;
+      |     ^~~~~~~
+memory_pool/memory_pool.h:138:5: error: ‘_Atomic’ does not name a type
+  138 |     _Atomic size_t large_allocations;
+      |     ^~~~~~~
+kv_task.h:79:28: error: ‘bpt’ has not been declared
+   79 | extern int KV_GET(char *k, bpt::value_t* pos);
+      |                            ^~~
+kv_task.h:79:40: error: expected ‘,’ or ‘...’ before ‘*’ token
+   79 | extern int KV_GET(char *k, bpt::value_t* pos);
+      |                                        ^
+kv_func.c:71:23: error: ‘pbt’ has not been declared
+   71 | int KV_GET(char *key, pbt::value_t* val) {
+      |                       ^~~
+kv_func.c:71:35: error: expected ‘,’ or ‘...’ before ‘*’ token
+   71 | int KV_GET(char *key, pbt::value_t* val) {
+      |                                   ^
+kv_func.c: In function ‘int KV_GET(char*, int)’:
+kv_func.c:73:31: error: ‘k’ was not declared in this scope
+   73 |     printf("GEt key:-> %s\n", k);
+      |                               ^
+kv_func.c:74:54: error: ‘val’ was not declared in this scope
+   74 |     int ret = btree_search_c(global_bplus_tree, key, val);
+      |                                                      ^~~
+kv_func.c: In function ‘int KV_SET(char*, char*)’:
+kv_func.c:166:25: error: ‘v’ was not declared in this scope
+  166 |     } else if (is_float(v)) {
+      |                         ^
+kv_func.c: In function ‘int KV_DEL(char*)’:
+kv_func.c:180:1: warning: no return statement in function returning non-void [-Wreturn-type]
+  180 | }
+      | ^
+kv_func.c: In function ‘int KV_INCR(char*)’:
+kv_func.c:183:1: warning: no return statement in function returning non-void [-Wreturn-type]
+  183 | }
+      | ^
+kv_func.c: In function ‘int KV_DECR(char*)’:
+kv_func.c:186:1: warning: no return statement in function returning non-void [-Wreturn-type]
+  186 | }
+      | ^
+In file included from kv_task.h:10,
+                 from kv_protocal.h:4,
+                 from kv_protocal.c:14:
+memory_pool/memory_pool.h:2: warning: "_GNU_SOURCE" redefined
+    2 | #define _GNU_SOURCE
+      | 
+<command-line>: note: this is the location of the previous definition
+In file included from ./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:6,
+                 from ./lock_free_ring_buf/lock_free_ring_buf.h:10,
+                 from kv_task.h:9:
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:19:5: error: ‘sequence_lock_t’ does not name a type
+   19 |     sequence_lock_t lock;
+      |     ^~~~~~~~~~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:20:5: error: ‘atomic_size_t’ does not name a type
+   20 |     atomic_size_t used;
+      |     ^~~~~~~~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:21:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   21 |     _Atomic(uint8_t) fail_cnt;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:21:20: error: expected ‘;’ at end of member declaration
+   21 |     _Atomic(uint8_t) fail_cnt;
+      |                    ^
+      |                     ;
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:21:22: error: ‘fail_cnt’ does not name a type
+   21 |     _Atomic(uint8_t) fail_cnt;
+      |                      ^~~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:25:5: error: ‘atomic_size_t’ does not name a type
+   25 |     atomic_size_t reference_count;
+      |     ^~~~~~~~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:34:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   34 |     _Atomic(size_t) deref_cnt;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:34:19: error: expected ‘;’ at end of member declaration
+   34 |     _Atomic(size_t) deref_cnt;
+      |                   ^
+      |                    ;
+./lock_free_ring_buf/../ARENA_ALLOCATOR/arena_allocator.h:34:21: error: ‘deref_cnt’ does not name a type
+   34 |     _Atomic(size_t) deref_cnt;
+      |                     ^~~~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:26:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   26 |     _Atomic(stage_allocator_t*) head;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:26:31: error: expected ‘;’ at end of member declaration
+   26 |     _Atomic(stage_allocator_t*) head;
+      |                               ^
+      |                                ;
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:26:33: error: ‘head’ does not name a type
+   26 |     _Atomic(stage_allocator_t*) head;
+      |                                 ^~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:28:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   28 |     _Atomic(stage_allocator_t*) current;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:28:31: error: expected ‘;’ at end of member declaration
+   28 |     _Atomic(stage_allocator_t*) current;
+      |                               ^
+      |                                ;
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:28:5: error: ‘int allocator_out_s::_Atomic(stage_allocator_t*)’ cannot be overloaded with ‘int allocator_out_s::_Atomic(stage_allocator_t*)’
+   28 |     _Atomic(stage_allocator_t*) current;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:26:5: note: previous declaration ‘int allocator_out_s::_Atomic(stage_allocator_t*)’
+   26 |     _Atomic(stage_allocator_t*) head;
+      |     ^~~~~~~
+./lock_free_ring_buf/../ARENA_ALLOCATOR/stage_allocator.h:28:33: error: ‘current’ does not name a type
+   28 |     _Atomic(stage_allocator_t*) current;
+      |                                 ^~~~~~~
+./lock_free_ring_buf/lock_free_ring_buf.h:35:5: error: ISO C++ forbids declaration of ‘_Atomic’ with no type [-fpermissive]
+   35 |     _Atomic(uint64_t) state;         //*低32位head， 高32位tail
+      |     ^~~~~~~

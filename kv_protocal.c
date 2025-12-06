@@ -51,7 +51,6 @@ void Process_Message(connection_t *c)
             // printf("read_to_ring之后current KEY0:->%s\n", (char*)c->kv_array[0].key);
             //* 当把数据读到环形缓冲区后，在该环形缓冲区中处理数据
             //* 这里设计成，让处理函数内部来实现保证正确写入
-            //* 除非是真的任务在哪里都放不下了，那么
             Process_Protocal(c);
             // printf("Process_Protocal之后current KEY0:->%s\n", (char*)c->kv_array[0].key);
 
@@ -72,9 +71,9 @@ void Process_Message(connection_t *c)
 //? 方法1是直接丢弃前面的请求
 //? 如果真的是丢包那么可以再设计一个包缓存，但是映射关系很难用某种方法去维护
 
-void smart_backoff_strategy() {
+// void smart_backoff_strategy() {
 
-}
+// }
 
 int Process_Protocal(connection_t *c)
 {
@@ -97,7 +96,6 @@ int Process_Protocal(connection_t *c)
                 c->state = PARSE_STATE_BODY;
             }
         } else if (c->state == PARSE_STATE_BODY) {
-            int sign = 0;
             if (c->read_rb.Length < c->current_header) {
                 // poll(NULL,NULL,5000);
                 printf("环形缓冲区Body数据不足,回到上层再次从缓存区中读数据");
@@ -113,32 +111,38 @@ int Process_Protocal(connection_t *c)
                 //* 这里先就让调度器+1,循环的遍历，不改变原子变量
                 //* 如果为了强轮询一致性，那么就需要持续的改变原子变量
                 //* 这里其实如果说不改变原子，那么当前线程满了后，这个线程push不进去，另外一个线程的原子变量指向这个照样push
-                task_t *task = (task_t*)malloc(sizeof(task_t));
-                if (task != NULL) {
-                    task->conn_fd = c->fd;
-                    task->payload_len = c->current_header;
-                    char *temp_payload = malloc(sizeof(c->current_header));
-                    if (temp_payload != NULL) {
-                        task->payload = temp_payload;
-                        
-                        RB_Read_String(&c->read_rb, task->payload, task->payload_len);
+
+
+                //  task_t *task = (task_t*)malloc(sizeof(task_t));
+
+                block_alloc_t block = allocator_alloc(&global_allocator, c->current_header + 1);
+                // 拿到block,然后写入线程的任务队列中
+                if (block.ptr != NULL) {
+                    bzero(block.ptr, block.size);// 多一个/0用于c语言字符串的结束标志
+                    block.conn_fd = c->fd;
+                    // block.size = c->current_header;
+                    // char *temp_payload = malloc(c->current_header);
+                    // if (temp_payload != NULL) {
+                        // task->payload = temp_payload;
+                        RB_Read_String(&c->read_rb, block.ptr, block.size - 1);
+                        // RB_Read_String(&c->read_rb, task->payload, task->payload_len);
                         // if (LK_RB_Write_Task(&g_thread_pool.workers[worker_idx], task, 1) == RING_BUFFER_SUCCESS) {
                         //     printf("task input success\n");
                         //     break;
                         // }
-                    } else {
-                        printf("temp_payload malloc failed\n");
-                        exit(-1);
-                    }
+                    // } else {
+                        // printf("temp_payload malloc failed\n");
+                        // exit(-1);
+                    // }
 
                     //* LK_RB_Write_Task写入 失败,free掉temp_payload
                     // free(temp_payload);
                 } else {
                     //* malloc 失败都直接退出
-                    printf("task malloc failed\n");
+                    printf("block alloc failed from allocator\n");
                     exit(-1);
                 }
-                //* task开辟成功
+                //* block开辟成功
                 uint64_t usecd = INITIAL_BACKOFF_US;
                 nty_schedule *sched = nty_coroutine_get_sched();
                 if (sched == NULL) {
@@ -146,59 +150,69 @@ int Process_Protocal(connection_t *c)
                     return -1;
                 }
                 nty_coroutine *co = sched->curr_thread;
-               double backoff_us = INITIAL_BACKOFF_US;
-
+                double backoff_us = INITIAL_BACKOFF_US;
+                bool sign = false;
                 while (1) {
-
                     //* 依次遍历线程
                     for (int i = 0; i < g_thread_pool.worker_count; i++) {
                     // g_thread_pool.workers[worker_idx]
                         int worker_idx = g_thread_pool.scheduler_strategy();
-                        if (LK_RB_Write_Task(&g_thread_pool.workers[worker_idx].queue, task, 1) == RING_BUFFER_SUCCESS) {
-                            return 0;//* input success, return 0
+                        if (LK_RB_Write_Task(&g_thread_pool.workers[worker_idx].queue, &block, 1) == RING_BUFFER_SUCCESS) {
+                            sem_post(&g_thread_pool.workers[worker_idx].sem);
+                            sign = true;
+                            break;//* input success, 退出循环处理下一个数据
                         }
                     }
                     //* 线程的任务队列不足，那么去到全局环形队列
                     //* 这里有多个全局环形队列，获取原子变量依次去遍历，都没有就考虑开辟新的全局队列
                     //* 如果队列已达上限，那么使用智能退避延迟策略
-
-                    //* 这里先设计成/2，后续可以优化成更智能的策略
-                    for (int i = 0; i < g_thread_pool.current_queue_num / 2; i++) {
-                        int next_queue = atomic_fetch_add(&g_thread_pool.produce_next_queue_idx, 1) % g_thread_pool.current_queue_num;
-                        if (LK_RB_Write_Task(&g_thread_pool.global_queue[next_queue], task, 1) == RING_BUFFER_SUCCESS) {
-                            printf("放入全局队列");
-                            return 0;
+                    // * 这里用专门的线程来处理全局队列的任务
+                    // global queue
+                    int rn = -1;
+                    for (int i = 0; i < g_thread_pool.current_queue_num; i++) {
+                        int next_queue = atomic_fetch_add_explicit(&g_thread_pool.produce_next_queue_idx, 1, memory_order_release) % g_thread_pool.current_queue_num;
+                        if (LK_RB_Write_Task(&g_thread_pool.global_queue[next_queue], &block, 1) == RING_BUFFER_SUCCESS) {
+                            sem_post(&g_thread_pool.sem[next_queue]);
+                            rn = atomic_load_explicit(&g_thread_pool.sleep_num, memory_order_acquire);
+                            if (rn > 0) {
+                                pthread_cond_signal(&g_thread_pool.global_cond);
+                            }
+                            sign = true;
+                            break;
+                            // printf("放入全局队列");
                         }
                     }
-
+ 
                     //? 如果连全局都放不下，那么就使用智能退避
                     //? 这里是协程框架所以直接用yield的而非sleep
-                    //?
 
+                    if (sign) {
+                        break;
+                    }
+
+                    
                     nty_schedule_sched_sleepdown(co, backoff_us);
                     backoff_us *= 2;
                 }
-                //* 重新把payload放入当前连接的ring_buf
-                //* 这里可能当前线程队列已满，返回ERROR
-                //* 那么
-                //* 写入任务队列后，线程拿取任务再执行
+          
+                c->state = PARSE_STATE_HEADER;
 
-
-
-              //  // printf("read_rb.Length:%u, current_head:%u\n", c->read_rb.Length, c->current_header);
-              //  // memset(c->pkt_data, 0, sizeof(RING_BUF_SIZE));
-              //  // RB_Read_String(&c->read_rb, c->pkt_data, c->current_header);
-              //  // printf("处理pocket:%s\n", c->pkt_data);
-              //  // if(Process_Task(c) == 0) {
-              //  //     printf("current KEY0:->%s\n", (char*)c->kv_array[0].key);
-              //  //     printf("1个完整的请求被处理\n");
-//
-              //  //     memset(c->pkt_data, 0, RING_BUF_SIZE+1);
-              //  //     printf("current KEY0:->%s\n", (char*)c->kv_array[0].key);
-//
-              //  // }
-              //  // c->state = PARSE_STATE_HEADER;
-              //  // c->current_header = 0;
+//            //    printf("read_rb.Length:%u, current_head:%u\n", c->read_rb.Length, c->current_header);
+//            //    memset(c->pkt_data, 0, sizeof(RING_BUF_SIZE));
+//            //    RB_Read_String(&c->read_rb, c->pkt_data, c->current_header);
+//            //    printf("处理pocket:%s\n", c->pkt_data);
+//            //    if(Process_Task(c) == 0) {
+//            //        printf("current KEY0:->%s\n", (char*)c->kv_array[0].key);
+//            //        printf("1个完整的请求被处理\n");
+//      // * 重新把payload放入当前连接的ring_buf
+            //    // * 这里可能当前线程队列已满，返回ERROR
+              //  // * 那么
+                ///// * 写入任务队列后，线程拿取任务再执行
+  //          //        memset(c->pkt_data, 0, RING_BUF_SIZE+1);
+  //          //        printf("current KEY0:->%s\n", (char*)c->kv_array[0].key);
+  //          //    }
+  //          //    c->state = PARSE_STATE_HEADER;
+  //          //    c->current_header = 0;
             }      
         }
     }
