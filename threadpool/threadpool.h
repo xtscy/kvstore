@@ -13,8 +13,8 @@
 
 #define THREAD_POOL_SUCCESS     0x01
 #define THREAD_POOL_ERROR       0x00
-#define MAX_GLOBAL_QUEUE_NUM    1
-#define GLOBAL_TASK_THREADS     1
+#define MAX_GLOBAL_QUEUE_NUM    3
+#define GLOBAL_TASK_THREADS     2
 
 // Worker线程结构
 typedef struct worker_s{
