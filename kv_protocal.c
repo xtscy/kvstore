@@ -157,7 +157,7 @@ int Process_Protocal(connection_t *c)
                     for (int i = 0; i < g_thread_pool.worker_count; i++) {
                     // g_thread_pool.workers[worker_idx]
                         int worker_idx = g_thread_pool.scheduler_strategy();
-                        if (LK_RB_Write_Task(&g_thread_pool.workers[worker_idx].queue, &block, 1) == RING_BUFFER_SUCCESS) {
+                        if (LK_RB_Write_Block(&g_thread_pool.workers[worker_idx].queue, &block, 1) == RING_BUFFER_SUCCESS) {
                             sem_post(&g_thread_pool.workers[worker_idx].sem);
                             sign = true;
                             break;//* input success, 退出循环处理下一个数据
@@ -171,7 +171,7 @@ int Process_Protocal(connection_t *c)
                     int rn = -1;
                     for (int i = 0; i < g_thread_pool.current_queue_num; i++) {
                         int next_queue = atomic_fetch_add_explicit(&g_thread_pool.produce_next_queue_idx, 1, memory_order_release) % g_thread_pool.current_queue_num;
-                        if (LK_RB_Write_Task(&g_thread_pool.global_queue[next_queue], &block, 1) == RING_BUFFER_SUCCESS) {
+                        if (LK_RB_Write_Block(&g_thread_pool.global_queue[next_queue], &block, 1) == RING_BUFFER_SUCCESS) {
                             sem_post(&g_thread_pool.sem[next_queue]);
                             rn = atomic_load_explicit(&g_thread_pool.sleep_num, memory_order_acquire);
                             if (rn > 0) {

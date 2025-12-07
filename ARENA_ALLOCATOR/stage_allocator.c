@@ -89,7 +89,7 @@ void* monitor_thread(void *arg) {
 
 bool create_monitor_thread(void) {
 
-    pthread_t monitor_thread;
+    pthread_t monitor_thread_id;
     pthread_attr_t attr;
     
     // 初始化线程属性
@@ -106,7 +106,7 @@ bool create_monitor_thread(void) {
     }
     
     // 创建分离线程
-    if (pthread_create(&monitor_thread, &attr, monitor_thread, NULL) != 0) {
+    if (pthread_create(&monitor_thread_id, &attr, monitor_thread, NULL) != 0) {
         perror("pthread_create failed");
         pthread_attr_destroy(&attr);
         return 0;

@@ -48,8 +48,8 @@ typedef struct
 
 uint8_t LK_RB_Init(lock_free_ring_buffer  *rb_handle, uint32_t buffer_size);               //初始化基础环形缓冲区
 uint8_t LK_RB_Delete(lock_free_ring_buffer *rb_handle, uint32_t Length);                                        //从头指针开始删除指定长度的数据
-uint8_t LK_RB_Write_Task(lock_free_ring_buffer *rb_handle, block_alloc_t *input_addr, uint32_t write_Length);       //向缓冲区尾指针写指定长度数据
-uint8_t LK_RB_Read_Task(lock_free_ring_buffer *rb_handle, block_alloc_t *output_addr, uint32_t read_Length);        //从缓冲区头指针读指定长度数据
+uint8_t LK_RB_Write_Block(lock_free_ring_buffer *rb_handle, block_alloc_t *input_addr, uint32_t write_Length);       //向缓冲区尾指针写指定长度数据
+uint8_t LK_RB_Read_Block(lock_free_ring_buffer *rb_handle, block_alloc_t *output_addr, uint32_t read_Length);        //从缓冲区头指针读指定长度数据
 uint32_t LK_RB_Get_Length(lock_free_ring_buffer *rb_handle);                                                    //获取缓冲区里已储存的数据长度
 uint32_t LK_RB_Get_FreeSize(lock_free_ring_buffer *rb_handle);                                                  //获取缓冲区可用储存空间
 

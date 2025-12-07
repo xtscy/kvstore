@@ -22,12 +22,6 @@ int kv_response(struct conn *c) {
 
 
 
-// typedef struct kv_type_s kv_type_t;
-// extern struct kv_type_s *g_kv_array;//* 等会编译的时候，两种情况都尝试一下
-// fixed_size_pool_t *small_kv_pool = NULL;
-// fixed_size_pool_t *medium_value_pool = NULL;
-// fixed_size_pool_t *large_value_pool = NULL;
-// extern fixed_size_pool_t *global_fixed_pool;
 extern allocator_out_t global_allocator;
 btree_handle global_bplus_tree;
 int main(int argc, char* argv[]) {
@@ -37,22 +31,27 @@ int main(int argc, char* argv[]) {
     if (!allocator_out_init(&global_allocator)) {
         printf("failed init allocator\n");
     }
-    global_fixed_pool = fixed_pool_create(sizeof(block_alloc_t), 100000);
-    global_bplus_tree = btree_create_c(global_bplus_tree);
-
-    Thread_Pool_Init(5);
+    printf("1\n");
+    global_fixed_pool = fixed_pool_create(sizeof(block_alloc_t), 100);
+    printf("2\n");
+    global_bplus_tree = btree_create_c();
+    printf("3\n");
+    Thread_Pool_Init(1);
     Thread_Pool_Run();   
-    
+    printf("4\n");
     if (argc != 2) return -1;
     unsigned short port = atoi(argv[1]);
-    printf("1\n");
+    printf("5\n");
     if(UseNet == NtyCo) {
+        printf("6\n");
         NtyCo_Entry(port);
+        printf("7\n");
     } else if (UseNet == Reactor){
         Reactor_Entry(port);
     }
 
 
-    sleep(1000);
+    printf("main运行完成, return 0 退出\n");
+    // sleep(10000000);
     return 0;
 }

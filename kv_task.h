@@ -76,7 +76,7 @@ typedef enum value_type_e value_type_t;
 // typedef struct task_s task_t;
 
 extern int KV_SET(char *k, char *v);
-extern int KV_GET(char *k, bpt::value_t* pos);
+extern int KV_GET(char *k, int* val);
 extern int KV_DEL(char *k);
 extern int KV_INCR(char *k);
 extern int KV_DECR(char *k);

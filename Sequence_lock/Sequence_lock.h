@@ -1,6 +1,7 @@
+#ifndef __SEQUENCE_LOCK__
+#define __SEQUENCE_LOCK__
 #include <stdio.h>
 #include <stdatomic.h>
-
 
 
 // 偶数读，奇数写
@@ -10,3 +11,5 @@ typedef struct sequence_lock_s {
     atomic_size_t seq_lock;
     
 } sequence_lock_t;
+
+#endif

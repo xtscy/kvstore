@@ -163,7 +163,7 @@ int Process_Data_Task(block_alloc_t *block) {
                         // if (g_kv_array[pos].type == TYPE_INTEGER) {
                             char s_buf[16] = {0};//解引用,就是把拿到指针指向的对象,int a = 10 int *pt = &a , *pt = a = 10,
                             sprintf(s_buf, "%d", pos);
-                            ssend(t->conn_fd, s_buf, strlen(s_buf), 0);
+                            ssend(block->conn_fd, s_buf, strlen(s_buf), 0);
                             printf("ssend:%s\n", s_buf);
                         // } else if (g_kv_array[pos].type == TYPE_STRING) {
                             // ssend(t->conn_fd, g_kv_array[pos].value, strlen(g_kv_array[pos].value), 0);
@@ -171,7 +171,7 @@ int Process_Data_Task(block_alloc_t *block) {
                         
                     } else if (flag == -1) {
                         char *buf = "FALSE";
-                        ssend(t->conn_fd, buf, strlen(buf), 0);
+                        ssend(block->conn_fd, buf, strlen(buf), 0);
                         //* send 不存在
                     }
                     cur_token += 2;

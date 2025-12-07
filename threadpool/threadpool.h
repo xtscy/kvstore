@@ -13,26 +13,25 @@
 
 #define THREAD_POOL_SUCCESS     0x01
 #define THREAD_POOL_ERROR       0x00
-#define MAX_GLOBAL_QUEUE_NUM    6
-#define GLOBAL_TASK_THREADS     3
+#define MAX_GLOBAL_QUEUE_NUM    1
+#define GLOBAL_TASK_THREADS     1
 
 // Worker线程结构
 typedef struct worker_s{
     volatile pthread_t thread_id;           // 线程ID
     int worker_id;                 // Worker的标识符
-    atomic_size_t task_count;     // 当前任务数（用于统计）
+    // atomic_size_t task_count;     // 当前任务数（用于统计）
     lock_free_ring_buffer queue;  // 每个Worker自己的无锁环形队列
     sem_t sem;
 
     // wake_sign的初始值设置为1，用于同步阻塞逻辑
-    sem_t wake_sign;
 } worker_t;
 
 typedef struct global_worker_s{
     volatile pthread_t thread_id;
     int global_id;
     pthread_mutex_t g_mutex;
-} global_worker_t
+} global_worker_t;
 
 // 这里可以用一个如果全局任务非常多,但是当前线程任务数少,那么就可以让当前线程去帮忙处理全局队列的任务
 
@@ -76,6 +75,6 @@ extern void* Worker_Func(void*);
 extern uint8_t Thread_Pool_Run();
 extern int Thread_Scheduler(void);
 extern thread_pool_t g_thread_pool;
-extern int Process_Data_Task(task_t *t);
+extern int Process_Data_Task(block_alloc_t *t);
 
 #endif

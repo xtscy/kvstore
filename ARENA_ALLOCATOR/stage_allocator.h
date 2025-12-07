@@ -46,4 +46,5 @@ extern bool allocator_out_init(allocator_out_t*);
 extern block_alloc_t allocator_alloc(allocator_out_t *, size_t);
 extern bool allocator_deref(stage_allocator_t *);
 extern allocator_out_t global_allocator;
+extern bool create_monitor_thread(void);
 #endif

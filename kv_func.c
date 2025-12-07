@@ -68,9 +68,9 @@ int kv_free(void *p) {
 //*返回0找到有效key，没找到返回-1
 // 这里使用内存池，那么就没有数组访问，而是使用alloc申请块，然后放入块中
 // 这里GET某个key，也是去到内存池中查找
-int KV_GET(char *key, pbt::value_t* val) {
+int KV_GET(char *key, int* val) {
     printf("3\n");
-    printf("GEt key:-> %s\n", k);
+    printf("GEt key:-> %s\n", key);
     int ret = btree_search_c(global_bplus_tree, key, val);
     if (ret == 0)
         return 0;
@@ -163,7 +163,7 @@ int KV_SET(char *key, char *val) {
         // }
 
         //* 给客户端发送完成信息,在上一层完成send
-    } else if (is_float(v)) {
+    } else if (is_float(val)) {
         printf("is_float(v)");
     } else {
         //* 作为普通字符串

@@ -66,8 +66,9 @@ void server(void *arg) {
 	local.sin_port = htons(port);
 	local.sin_addr.s_addr = INADDR_ANY;
 	bind(fd, (struct sockaddr*)&local, sizeof(struct sockaddr_in));
-
+	printf("listen before\n");
 	listen(fd, 20);
+	printf("listen after\n");
 	printf("listen port : %d\n", port);
 
 	while (!0) {
@@ -82,8 +83,8 @@ void server(void *arg) {
 }
 
 
-kv_type_t* g_kv_array = NULL;
-extern fixed_size_pool_t *small_kv_pool;
+// kv_type_t* g_kv_array = NULL;
+// extern fixed_size_pool_t *small_kv_pool;
 // extern fixed_size_pool_t *medium_value_pool;
 // extern fixed_size_pool_t *large_value_pool;
 
@@ -94,17 +95,19 @@ extern fixed_size_pool_t *small_kv_pool;
 int NtyCo_Entry(unsigned short p) {
 	size_t size = sizeof(kv_type_t);
 
-	small_kv_pool = fixed_pool_create(SMALL_SIZE, 3000000);
+	// small_kv_pool = fixed_pool_create(SMALL_SIZE, 3000000);
 	// small_value_pool = fixed_pool_create(MEDIUM_SIZE, 3000000);
 	// 当存储值时，才去alloc分配块，并且alloc时把
 
-	g_kv_array = (kv_type_t*)malloc(sizeof(kv_type_t) * KV_ARRAY_SIZE);
-	int port = 5678;
+	// g_kv_array = (kv_type_t*)malloc(sizeof(kv_type_t) * KV_ARRAY_SIZE);
+	printf("8\n");
+	int port = p;
 	
 	nty_coroutine *co = NULL;
 	nty_coroutine_create(&co, server, &port);
-
+	printf("9\n");
 	nty_schedule_run();
+	printf("10\n");
 	return 0;
 }
 

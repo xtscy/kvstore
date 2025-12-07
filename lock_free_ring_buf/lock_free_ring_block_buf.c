@@ -6,7 +6,6 @@
 uint8_t LK_RB_Init(lock_free_ring_buffer *rb_handle, uint32_t buffer_size)
 {
     //缓冲区数组空间必须大于2且小于数据类型最大值
-    //* 即缓冲区空间不能太小，也不能太大
     if(buffer_size < 2 || buffer_size == 0xFFFFFFFF) {
         return RING_BUFFER_ERROR ; //初始化失败
     }

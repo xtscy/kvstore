@@ -9,6 +9,7 @@
 #include <stdint.h>
 #include <stdatomic.h>
 #include <stdbool.h>
+#include "../Sequence_lock/Sequence_lock.h"
 // #include "../Sequence_lock/Sequence_lock.h"
 
 #define STAGE_DATA_SIZE 2048 * 5

@@ -269,7 +269,7 @@ typedef struct _nty_coroutine_compute_sched {
 
 extern pthread_key_t global_sched_key;
 static inline nty_schedule *nty_coroutine_get_sched(void) {
-	return pthread_getspecific(global_sched_key);
+	return (nty_schedule *)pthread_getspecific(global_sched_key);
 }
 
 static inline uint64_t nty_coroutine_diff_usecs(uint64_t t1, uint64_t t2) {
