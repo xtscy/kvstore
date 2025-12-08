@@ -27,10 +27,18 @@ bool allocator_out_init(allocator_out_t *o_allocator) {
     temp = malloc(sizeof(stage_allocator_t) * logic_cpu);
     for (int i = 0; i < logic_cpu; i++) {
         temp[i].stage = stage_create(stage_size);
+        if (temp[i].stage != NULL) {
+            printf("create stage %d\n", stage_size);
+        } else {
+            printf("create stage failed\n");
+            exit(-11);
+        }
         temp[i].next = atomic_load_explicit(&o_allocator->head, memory_order_relaxed);
         atomic_store_explicit(&o_allocator->head, &temp[i], memory_order_relaxed);
         atomic_init(&temp[i].deref_cnt, 0);
         atomic_init(&temp[i].monitor_sign, 0);
+        temp[i].last_deref_cnt = -1;
+        
         // init is single thread
     }
     alloc_count += logic_cpu;
@@ -60,6 +68,7 @@ void* monitor_thread(void *arg) {
     size_t last_dc = 0;
     
     while(true) {
+        printf("monitor_thread begin\n");
         head = atomic_load_explicit(&global_allocator.head, memory_order_acquire);
         while (head) {
             if (atomic_compare_exchange_strong_explicit(&head->deref_cnt, &head->last_deref_cnt, head->last_deref_cnt,
@@ -72,18 +81,20 @@ void* monitor_thread(void *arg) {
                     cur_used = atomic_load_explicit(&head->stage->used, memory_order_acquire);
                     size_t capacity = head->stage->capacity;
                     if (cur_used >= capacity - 256) {
+                        printf("stage_deref_batch ");
                         stage_deref_batch(head->stage, head->last_deref_cnt);
                         --head->monitor_sign;
                     }
                 }
             } else {
                 head->monitor_sign = 0;
+                // head->last_deref_cnt = atomic_store_explicit()
             }
             head = head->next;
         }
-        usleep(5000);
+        printf("monitor_thread sleep ->  3\n");
+        sleep(3);
     }
-    
     return NULL;
 }
 
@@ -143,6 +154,8 @@ bool create_monitor_thread(void) {
 block_alloc_t allocator_alloc(allocator_out_t *allocator, size_t size) {
 
     if (allocator == NULL || size == 0) {
+        printf("allocator_alloc->(allocator == NULL || size == 0 \
+                -> return {0}\n");
         return (block_alloc_t) {
             .ptr = NULL,
             .size = 0,

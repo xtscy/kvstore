@@ -2,7 +2,7 @@
 #include <string.h>
 
 int main() {
-    const char* message = "SET KEY2 2000";
+    const char* message = "get key2 get key1 get key2";
     unsigned int length = strlen(message);
     
     // 打开文件进行二进制写入

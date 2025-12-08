@@ -31,8 +31,8 @@ uint8_t LK_RB_Delete(lock_free_ring_buffer *rb_handle, uint32_t Length)
     uint64_t old_state = 0, new_state = 0;
     uint32_t old_head = 0, old_tail = 0, new_head = 0, new_tail = 0;
 
+    old_state = atomic_load(&rb_handle->state);
     do {
-        old_state = atomic_load(&rb_handle->state);
         old_head = GET_HEAD(old_state);
         old_tail = GET_TAIL(old_state);
         uint32_t num = 0;
@@ -73,11 +73,12 @@ uint8_t LK_RB_Write_Block(lock_free_ring_buffer *rb_handle, block_alloc_t *input
     uint32_t old_head = 0;
     uint32_t old_tail = 0, new_tail = 0;
     old_state = atomic_load(&rb_handle->state);
-    old_head = GET_HEAD(old_state);
-    old_tail = GET_TAIL(old_state);
-
+    
     do {
+        old_head = GET_HEAD(old_state);
+        old_tail = GET_TAIL(old_state);
         uint32_t count = 0, free_size = 0;
+        // 计算当前个数，tail指向下一个写入位置
         if (old_head <= old_tail) {
             count = old_tail - old_head;
         } else {
@@ -89,14 +90,14 @@ uint8_t LK_RB_Write_Block(lock_free_ring_buffer *rb_handle, block_alloc_t *input
         }
 
         if (rb_handle->max_Length - old_tail <= write_Length) {
-            new_tail = write_Length - rb_handle->max_Length + old_tail;
+            new_tail = write_Length - (rb_handle->max_Length - old_tail);
         } else {
             new_tail = old_tail + write_Length;
         }
         
         new_state = MAKE_STATE(old_head, new_tail);
         
-    } while(atomic_compare_exchange_strong(&rb_handle->state, &old_state, new_state));
+    } while(atomic_compare_exchange_weak(&rb_handle->state, &old_state, new_state));
 
     memcpy(&rb_handle->block_array[old_tail], input_addr, write_Length * sizeof(block_alloc_t));
     
@@ -109,11 +110,13 @@ uint8_t LK_RB_Read_Block(lock_free_ring_buffer *rb_handle, block_alloc_t *output
 
     uint64_t old_state = 0, new_state = 0;
     old_state = atomic_load(&rb_handle->state);
-    uint32_t old_head = GET_HEAD(old_state), new_head = 0;
-    uint32_t old_tail = GET_TAIL(old_state);
+    uint32_t old_head = 0, new_head = 0;
+    uint32_t old_tail = 0;
 
     do {
-
+        old_head = GET_HEAD(old_state);
+        old_tail = GET_TAIL(old_state);
+        
         uint32_t num = 0;
         if (old_head <= old_tail) {
             num = old_tail - old_head;
@@ -132,7 +135,7 @@ uint8_t LK_RB_Read_Block(lock_free_ring_buffer *rb_handle, block_alloc_t *output
         }
         memcpy(output_addr, &rb_handle->block_array[old_head], read_Length * sizeof(block_alloc_t));
         new_state = MAKE_STATE(new_head, old_tail);
-    } while (atomic_compare_exchange_strong(&rb_handle->state, &old_state, new_state)) ;
+    } while (atomic_compare_exchange_weak(&rb_handle->state, &old_state, new_state));
 
 
     return RING_BUFFER_SUCCESS ;

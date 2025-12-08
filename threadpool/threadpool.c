@@ -102,13 +102,13 @@ static void* Global_Worker_Func(void *arg) {
     int ret = -1;
     struct timespec ts = {0};
     int pos = -1;
+    int s_val = -1;
     while (1) {
         // 去全局队列中拿任务处理
         printf("Global_Worker_Func 4\n");
         pos = atomic_fetch_add_explicit(&g_thread_pool.global_pos, 1, memory_order_acquire);
         printf("Global_Worker_Func 5\n");
 
-        int s_val = -1;
         for (int i = 0; i < g_thread_pool.current_queue_num; i++) {
             // 先用信号量判断当前queue是否有任务
             printf("Global_Worker_Func 6:%d\n", i);

@@ -32,6 +32,7 @@ typedef struct task_s {
 typedef struct
 {
     //* 头指针指向数据，尾指针指向空。左闭右开
+    //* 表示当前array的下标，每一个单位是block_alloc_t大小
     _Atomic(uint64_t) state;         //*低32位head， 高32位tail
     // uint32_t Length ;           //已储存的数据量
     uint32_t max_Length ;       //缓冲区最大可储存数据量
