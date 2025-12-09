@@ -24,6 +24,7 @@ void server_reader(void *arg) {
 		//* 可以用一个循环，如果缓冲区读完了，那就继续从临时缓冲区拿。缓冲区读完则跳出处理，来到外层继续下一个循环。
 		// printf("kv_array[0]:key->%s\n", (char*)c.kv_array->key);
 		printf("wait recv\n");
+		// 这里如果读到READ_CACHE_SIZE,最后一个请求的数据在下一个包里面，这里就是一个拆包的处理
 		ret = recv(fd, c.read_cache.cache, READ_CACHE_SIZE, 0);
 		if (ret > 0) {
 			printf("ret:%d\n",ret);

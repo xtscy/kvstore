@@ -22,10 +22,13 @@ uint32_t read_to_ring(connection_t *c)
     //* 缓存区会比环形缓冲区大很多。这里外层用循环，填满然后处理消息
     printf("read_to_ring->\n");
     // RB_Write_String(&c->read_rb, c->read_cache, copy_byte);
-    uint32_t copy_byte = c->read_cache.length - c->read_cache.head < RB_Get_FreeSize(&c->read_rb) ?
-        c->read_cache.length : RB_Get_FreeSize(&c->read_rb);
-    printf("read_cache.length:%u,read_cache.head:%d, copy_byte:%u\n",
-        c->read_cache.length, c->read_cache.head, copy_byte);
+    // 这里如果read_rb是满，那么将会死循环
+    uint32_t freesize = RB_Get_FreeSize(&c->read_rb);
+    // printf("", freesize);
+    uint32_t copy_byte = c->read_cache.length - c->read_cache.head < freesize ?
+        c->read_cache.length : freesize;
+    printf("read_cache.length:%u,read_cache.head:%d, read_rb freesize->%u, copy_byte:%u\n",
+        c->read_cache.length, c->read_cache.head, freesize, copy_byte);
     RB_Write_String(&c->read_rb, (uint8_t *)(c->read_cache.cache + c->read_cache.head), copy_byte);
     c->read_cache.head += copy_byte;
     return copy_byte;
@@ -85,20 +88,21 @@ int Process_Protocal(connection_t *c)
     {
         if (c->state == PARSE_STATE_HEADER) {
             //* 处理头部,可是头部的包也可能被拆分，如果不足4字节直接退出处理
-            if (c->read_rb.Length < 4) {
-                printf("环形缓冲区header数据不足\n");
+            if (c->read_rb.Length < 4U) {
+                printf("环形缓冲区header数据不足,read_rb.Length->%u\n", c->read_rb.Length);
                 return -3;//* -3header未读取
             } else {
                 printf("read header1, header:%u\n", c->current_header);
                 //* 由于判断了长度有效，所以必然返回成功，除非出现了非代码错误
-                RB_Read_String(&c->read_rb, (uint8_t*)&c->current_header, sizeof(uint32_t));
+                RB_Read_String(&c->read_rb, (uint8_t*)&c->current_header, 4U);
                 printf("current_header:%u\n", c->current_header);
                 c->state = PARSE_STATE_BODY;
             }
         } else if (c->state == PARSE_STATE_BODY) {
             if (c->read_rb.Length < c->current_header) {
                 // poll(NULL,NULL,5000);
-                printf("环形缓冲区Body数据不足,回到上层再次从缓存区中读数据");
+                printf("环形缓冲区Body数据不足,回到上层再次从缓存区中读数据 \
+                    当前所需要Body长度%u, 当前read_rb.Length%d\n", c->current_header, c->read_rb.Length);
                 return -4;//* boby长度不足返回-4
             } else {
                 //* 如果读到BODY，那么去调用调度器，写入某个线程的队列中
@@ -172,20 +176,20 @@ int Process_Protocal(connection_t *c)
                     //* 如果队列已达上限，那么使用智能退避延迟策略
                     // * 这里用专门的线程来处理全局队列的任务
                     // global queue
-                    int rn = -1;
-                    for (int i = 0; i < g_thread_pool.current_queue_num; i++) {
-                        int next_queue = atomic_fetch_add_explicit(&g_thread_pool.produce_next_queue_idx, 1, memory_order_release) % g_thread_pool.current_queue_num;
-                        if (LK_RB_Write_Block(&g_thread_pool.global_queue[next_queue], &block, 1) == RING_BUFFER_SUCCESS) {
-                            sem_post(&g_thread_pool.sem[next_queue]);
-                            rn = atomic_load_explicit(&g_thread_pool.sleep_num, memory_order_acquire);
-                            if (rn > 0) {
-                                pthread_cond_signal(&g_thread_pool.global_cond);
-                            }
-                            sign = true;
-                            break;
-                            // printf("放入全局队列");
-                        }
-                    }
+                    // int rn = -1;
+                    // for (int i = 0; i < g_thread_pool.current_queue_num; i++) {
+                    //     int next_queue = atomic_fetch_add_explicit(&g_thread_pool.produce_next_queue_idx, 1, memory_order_release) % g_thread_pool.current_queue_num;
+                    //     if (LK_RB_Write_Block(&g_thread_pool.global_queue[next_queue], &block, 1) == RING_BUFFER_SUCCESS) {
+                    //         sem_post(&g_thread_pool.sem[next_queue]);
+                    //         rn = atomic_load_explicit(&g_thread_pool.sleep_num, memory_order_acquire);
+                    //         if (rn > 0) {
+                    //             pthread_cond_signal(&g_thread_pool.global_cond);
+                    //         }
+                    //         sign = true;
+                    //         break;
+                    //         // printf("放入全局队列");
+                    //     }
+                    // }
  
                     //? 如果连全局都放不下，那么就使用智能退避
                     //? 这里是协程框架所以直接用yield的而非sleep

@@ -82,7 +82,10 @@ void* monitor_thread(void *arg) {
                     size_t capacity = head->stage->capacity;
                     if (cur_used >= capacity - 256) {
                         printf("stage_deref_batch ");
-                        stage_deref_batch(head->stage, head->last_deref_cnt);
+                        bool r = stage_deref_batch(head->stage, head->last_deref_cnt);
+                        if (r) {
+                            atomic_fetch_sub_explicit(&head->deref_cnt, Threshold_Deref, memory_order_release);
+                        }
                         --head->monitor_sign;
                     }
                 }
@@ -239,7 +242,7 @@ block_alloc_t allocator_alloc(allocator_out_t *allocator, size_t size) {
 // 原子函数， 这里每次调用都是减少1个引用，这里需要设计成能够重用的函数,使用原子操作
 // 每次调用内部判断是否达到阈值
 
-int deref_cnt = 0;
+// int deref_cnt = 0;
 int count_deref = 0;
 int deref_arr[100] = {0};
 int count_val = 0;
@@ -268,7 +271,7 @@ bool allocator_deref(stage_allocator_t *allocator) {
 
 
     temp = atomic_fetch_add_explicit(&allocator->deref_cnt, 1, memory_order_acquire) + 1;
-    count_val++;
+    // count_val++;
     // if (count_val == 301) {
     //     val_301 = temp;
     // }
@@ -293,16 +296,18 @@ bool allocator_deref(stage_allocator_t *allocator) {
         printf("============ ===================     ============\n");
         printf("stage cnt :%d\n", alloc_count);
         
-        deref_arr[count_deref] = count_val;
-        count_deref ++;
+        // deref_arr[count_deref] = count_val;
+        // count_deref ++;
         // 由于是原子操作，所以只有一个线程会获得到当前达到原子,temp也不会两次获得相同的值
         // 调用stage_deref
         // 只有一个线程进入，所以这里是精确计数
-        stage_deref_batch(allocator->stage, Threshold_Deref);
+        bool r = stage_deref_batch(allocator->stage, Threshold_Deref);
         // test code
-        deref_cnt += Threshold_Deref;     
+        // deref_cnt += Threshold_Deref;     
         // atomic_fetch_add_explicit(&deref_cnt, Threshold_Deref, memory_order_relaxed);
-        atomic_fetch_sub_explicit(&allocator->deref_cnt, Threshold_Deref, memory_order_release);
+        if (r) {
+            atomic_fetch_sub_explicit(&allocator->deref_cnt, Threshold_Deref, memory_order_release);
+        }
     }
 
     // 这里有可能不满足Threshold_Deref的倍数，所以一直不能全部deref,那么引用一直存在，

@@ -417,8 +417,9 @@ bool stage_deref_batch(stage_t *stage, size_t deref_cnt)
             if (deref_cnt > cur_ref)
             {
                 printf("deref_cnt : %ld, cur_ref : %ld\n", deref_cnt, cur_ref);
-                perror("过度deref or 引用累计值超过类型取值范围\n");
-                deref_cnt = cur_ref; 
+                perror("过度deref or 引用累计值超过类型取值范围 直接break\n");
+                break;
+                // deref_cnt = cur_ref; 
             }
 
             // 可以deref，未超过当前值

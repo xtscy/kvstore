@@ -21,7 +21,7 @@ int kv_response(struct conn *c) {
 
 
 
-
+extern _Atomic(uint16_t) fd_lock[20];
 extern allocator_out_t global_allocator;
 btree_handle global_bplus_tree;
 int main(int argc, char* argv[]) {
@@ -30,6 +30,9 @@ int main(int argc, char* argv[]) {
 
     if (!allocator_out_init(&global_allocator)) {
         printf("failed init allocator\n");
+    }
+    for (int i = 0; i < 20; i++) {
+        atomic_init(&fd_lock[i], 0);
     }
     printf("1\n");
     global_fixed_pool = fixed_pool_create(sizeof(block_alloc_t), 100);
