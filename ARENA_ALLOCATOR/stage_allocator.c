@@ -44,7 +44,7 @@ bool allocator_out_init(allocator_out_t *o_allocator) {
     alloc_count += logic_cpu;
     atomic_store_explicit(&o_allocator->current, &temp[logic_cpu - 1], memory_order_release); 
 
-    create_monitor_thread();
+    // create_monitor_thread();
     
     return true;        
 }

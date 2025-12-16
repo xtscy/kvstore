@@ -39,9 +39,10 @@ ssize_t ssend(int fd, const void *buf, size_t len, int flags) {
         printf("ret:%d\n", ret);
 
 		//printf("send --> len : %d\n", ret);
-		if (ret <= 0) {			
+		if (ret < 0) {			
             printf("当前send_f出错,ret=%d,continue\n", ret);
-            continue;
+            return -1;
+            // continue;
             // exit(-11);
 			// break;
 		} else if (ret == 0) {
@@ -81,7 +82,7 @@ int Process_Data_Task(block_alloc_t *block) {
     //* 这里不能使用strtok函数，为了保证线程安全，可重入函数
     //* 所以这里需要自己实现字符串分割,分割成一个一个token
     
-
+    printf("block:->%s\n", block->ptr);
     char *token[64] = {0};
     int num_token = 0;
     int prev = 0, pos = 0;
@@ -150,21 +151,24 @@ int Process_Data_Task(block_alloc_t *block) {
                 case 0 : {
                     //* SET
                     // 这里使用disk_bPlusTree
+                    // printf("")
                     flag = KV_SET(token[cur_token + 1], token[cur_token + 2]);
+
                     //* 通过返回flag的不同，从而发送不同的消息
                     //* 这里调用hook过的recv，发送消息并且可能让出
-                    char buf[20];
+                    char buf[24] = {0};
                     if (flag == 0) {
                         //* 发送OK
                         // buf = "OK";
-                        sprintf(buf, "%s", "OK");
-                        printf("set %s %s\n", token[cur_token] + 1, token[cur_token + 2]);
+                        sprintf(buf, "ok set %s %s", token[cur_token + 1], token[cur_token + 2]);
+                        printf("set %s %s\n", token[cur_token + 1], token[cur_token + 2]);
                         printf("send:%s\n", buf);
                     } else if (flag == -1) {
                         sprintf(buf, "%s", "FALSE");
                         // buf = "FALSE";
                     }
                     uint16_t val = 0;
+                    ssize_t sign = 0;
                     do {
                         val = atomic_load_explicit(&fd_lock[block->conn_fd], memory_order_acquire);
                         
@@ -173,7 +177,11 @@ int Process_Data_Task(block_alloc_t *block) {
                         }
                         if (atomic_compare_exchange_weak_explicit(&fd_lock[block->conn_fd], &val, val + 1, memory_order_acquire, memory_order_relaxed)) {
                             // ssend(block->conn_fd, s_buf, strlen(s_buf), 0);
-                            ssend(block->conn_fd, buf, strlen(buf), 0);
+                            sign = ssend(block->conn_fd, buf, strlen(buf), 0);
+                            if (sign == -1 || sign == 0) {
+                                atomic_fetch_add_explicit(&fd_lock[block->conn_fd], 1, memory_order_release);
+                                return -3;
+                            }
                             // atomic_store_explicit(&fd_lock[block->conn_fd], false, memory_order_release);
                             atomic_fetch_add_explicit(&fd_lock[block->conn_fd], 1, memory_order_release);
                             break;
@@ -208,17 +216,22 @@ int Process_Data_Task(block_alloc_t *block) {
                         // ssend(block->conn_fd, buf, strlen(buf), 0);
                         //* send 不存在
                     }
-                    
+                    ssize_t sign = 0;
                     uint16_t val = 0;
                     do {
                         val = atomic_load_explicit(&fd_lock[block->conn_fd], memory_order_acquire);
                         
                         if (val & 1) {
+                            printf("val & 1 continue");
                             continue;
                         }
                         if (atomic_compare_exchange_weak_explicit(&fd_lock[block->conn_fd], &val, val + 1, memory_order_acquire, memory_order_relaxed)) {
                             // ssend(block->conn_fd, s_buf, strlen(s_buf), 0);
-                            ssend(block->conn_fd, buf, strlen(buf), 0);
+                            sign = ssend(block->conn_fd, buf, strlen(buf), 0);
+                            if (sign == -1 || sign == 0) {
+                                atomic_fetch_add_explicit(&fd_lock[block->conn_fd], 1, memory_order_release);
+                                return -3;
+                            }
                             // atomic_store_explicit(&fd_lock[block->conn_fd], false, memory_order_release);
                             atomic_fetch_add_explicit(&fd_lock[block->conn_fd], 1, memory_order_release);
                             break;

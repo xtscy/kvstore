@@ -91,33 +91,33 @@ static void add_ms_to_time_spec(struct timespec *ts, long ms) {
 static void* Global_Worker_Func(void *arg) {
     global_worker_t *p_worker = (global_worker_t *)arg;
     block_alloc_t *block = (block_alloc_t *)fixed_pool_alloc(global_fixed_pool);
-    printf("Global_Worker_Func 1\n");
+    // printf("Global_Worker_Func 1\n");
     printf("run global_thread tid:%lu, thread wid:%d\n", p_worker->thread_id, p_worker->global_id);
     if (block == NULL) {
-        printf("Global_Worker_Func 2\n");
+        // printf("Global_Worker_Func 2\n");
         printf("malloc failed, exit -1");
         exit(-1);
     }
-    printf("Global_Worker_Func 3\n");
+    // printf("Global_Worker_Func 3\n");
     int ret = -1;
     struct timespec ts = {0};
-    int pos = -1;
+    uint32_t pos = 0;
     int s_val = -1;
     while (1) {
         // 去全局队列中拿任务处理
-        printf("Global_Worker_Func 4\n");
+        // printf("Global_Worker_Func 4\n");
         pos = atomic_fetch_add_explicit(&g_thread_pool.global_pos, 1, memory_order_acquire);
-        printf("Global_Worker_Func 5\n");
+        // printf("Global_Worker_Func 5\n");
 
         for (int i = 0; i < g_thread_pool.current_queue_num; i++) {
             // 先用信号量判断当前queue是否有任务
-            printf("Global_Worker_Func 6:%d\n", i);
+            // printf("Global_Worker_Func 6:%d\n", i);
             
             if (sem_getvalue(&g_thread_pool.sem[pos % g_thread_pool.current_queue_num], &s_val) != 0) {
-                printf("sem get value failed\n");
+                perror("sem get value failed\n");
                 exit(-4);
             }
-            printf("Global_Worker_Func 7:%d\n", i);
+            // printf("Global_Worker_Func 7:%d\n", i);
 
             if (s_val > 0) {
                 if (sem_trywait(&g_thread_pool.sem[pos % g_thread_pool.current_queue_num]) == 0) {
@@ -127,29 +127,31 @@ static void* Global_Worker_Func(void *arg) {
                     }
                     else if (ret == -2) {
                         printf("当前token没有对应的order, 该次中的所有token全部丢弃\n");
+                    } else {
+                        printf("其他错误\n");
                     }
-                    allocator_deref(block->allocator);
+                    // allocator_deref(block->allocator);
                 }
             }
             ++pos;
-            printf("Global_Worker_Func 8:%d\n", i);
+            // printf("Global_Worker_Func 8:%d\n", i);
         }
         
-        printf("Global_Worker_Func 9\n");
+        // printf("Global_Worker_Func 9\n");
         pthread_mutex_lock(&p_worker->g_mutex);
-        printf("Global_Worker_Func 10\n");
+        // printf("Global_Worker_Func 10\n");
 
-        printf("Global_Worker_Func 11\n");
+        // printf("Global_Worker_Func 11\n");
         clock_gettime(CLOCK_REALTIME, &ts);
-        printf("Global_Worker_Func 12\n");
+        // printf("Global_Worker_Func 12\n");
         add_ms_to_time_spec(&ts, 1755);
-        printf("Global_Worker_Func 13\n");
+        // printf("Global_Worker_Func 13\n");
         
         atomic_fetch_add_explicit(&g_thread_pool.sleep_num, 1, memory_order_release);
-        printf("Global_Worker_Func 14\n");
+        // printf("Global_Worker_Func 14\n");
 
         pthread_cond_timedwait(&g_thread_pool.global_cond, &p_worker->g_mutex, &ts);
-        printf("Global_Worker_Func 15\n");
+        // printf("Global_Worker_Func 15\n");
 
         atomic_fetch_sub_explicit(&g_thread_pool.sleep_num, 1, memory_order_release);
         pthread_mutex_unlock(&p_worker->g_mutex);
@@ -238,67 +240,26 @@ void *Worker_Func(void *arg)
         //* 这里线程的队列中的类型是task，所以是一个task一个task的拿然后处理当前的task
         int ret = -1;
         if(sem_wait(&p_worker->sem) == 0) {
-            LK_RB_Read_Block(&p_worker->queue, block, 1);
-            //* 拿到task,然后解析payload，通过payload_len,同时处理完后，直接发送对应消息的数据
-            //* 这里是只有body，header在协程框架中已经处理
-            //* 这里就是判断是哪个任务，然后执行对应任务即可,这里可以用函数指针
-            //* 让协程直接传函数指针给task_t，那么拿到task就可以直接运行
-            //* 这里写一个protocal_process协议解析，没有前缀长度的解析
-            //* 把字符串解析成单独的token后，再去判断做哪个任务，那么这个设计就和以前的是一摸一样了
+            LK_RB_Read_Block(&p_worker->queue, block, 1U);
 
             if ((ret = Process_Data_Task(block)) == 0) {
                 printf("当前block处理完成\n");
             } else if (ret == -2) {
                 printf("当前token没有对应的order, 该次中的所有token全部丢弃\n");
+            } else {
+                printf("其他错误\n");
             }
-            allocator_deref(block->allocator);
+            // allocator_deref(block->allocator);
             // fixed_pool_free(global_fixed_pool, )
             continue; 
         }
     }
-        // else {
-        //     // 去遍历全局队列
-        //     for (int i = 0; i < g_thread_pool.max_queue_num; i++)
-        //     {
-        //         if (sem_trywait(&g_thread_pool.global_queue[i]) == 0) {
-        //             LK_RB_Read_Task(&g_thread_pool.global_queue[i], block, 1);
-        //             if ((ret = Process_Data_Task(block)) == 0)
-        //             {
-        //                 printf("当前task处理完成\n");
-        //             }
-        //             else if (ret == -2)
-        //             {
-        //                 printf("当前token没有对应的order, 该次中的所有token全部丢弃\n");
-        //             }
-        //             allocator_deref(block->allocator);
-        //             continue;
-        //         }
-        //     }
-        // }
-        // sem_wait(&g_thread_pool.wake_sign);
-        
-        // }else if (LK_RB_Read_Task(&p_worker->queue, block, 1) == RING_BUFFER_SUCCESS) {
-        //     g_thread_pool
-        // } else {
-        //* 当前task拿取失败
-        //* 这里用条件变量等待
-        // pthread_cond_wait(p_worker->cond,, p_worker->mutex);
-        // printf("thread:>%d, task 拿取失败,go sleep(5)\n",p_worker->worker_id);
-        // }
-    // }
 }
 
 //* 这里线程池是作为全局参数的，所以可以直接使用，那么直接写函数就行
 
 //* 返回worker线程数组的下标
-int Thread_Scheduler(void)
+uint32_t Thread_Scheduler(void)
 {
-    //* 先实现最简单的轮询策略
-    //* 线程池中有一个int原子变量，就用这个原子变量来实现线程安全的轮询策略
-    //* 原子的加该变量，然后返回该值，next_woker_id指向当前应该被用的线程
-    //* 这里需要保证一个值只会被拿一次。所以保证的是原子的拿值并且更新
-    //* fetch_add一般都是1条指令，用于简单数值增减
-    //*
-    //* 这里取模，atomic_uint加到最大值就会溢出然后变为0,符合正确性
     return (atomic_fetch_add(&g_thread_pool.next_worker_id, 1) % g_thread_pool.worker_count);
 }

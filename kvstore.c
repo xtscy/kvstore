@@ -3,7 +3,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include "BPlusTree/bpt_c.h"
-
+#include "Persister/persister_c.h"
+#include "./MemoryBTreeLock/m_btree.h"
 #if UseNet == Reactor
 int kv_request(struct conn *c) {
     printf("recv %d: %s\n", c->rlength, c->rbuffer);
@@ -19,11 +20,13 @@ int kv_response(struct conn *c) {
 
 // typedef kv_type_s kv_type_t; 
 
-
+#define t 1024
 
 extern _Atomic(uint16_t) fd_lock[20];
 extern allocator_out_t global_allocator;
-btree_handle global_bplus_tree;
+// btree_handle global_bplus_tree;
+persister_handle global_persister;
+extern btree_t *global_m_btree;
 int main(int argc, char* argv[]) {
     // size_t size = sizeof(kv_type_s);
     // fixed_pool_create()
@@ -36,8 +39,14 @@ int main(int argc, char* argv[]) {
     }
     printf("1\n");
     global_fixed_pool = fixed_pool_create(sizeof(block_alloc_t), 100);
+    int_global_fixed_pool = fixed_pool_create(sizeof(int), 1000111);
     printf("2\n");
-    global_bplus_tree = btree_create_c();
+    global_m_btree = btree_create(t);
+    // global_bplus_tree = btree_create_c();
+    // 
+    #define full_path "fullLog.db"
+    global_persister = persister_create_c(full_path);
+    
     printf("3\n");
     Thread_Pool_Init(1);
     Thread_Pool_Run();   

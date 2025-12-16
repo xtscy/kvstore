@@ -198,6 +198,8 @@ block_alloc_t stage_alloc_pessimistic(size_t size, stage_allocator_t *allocator)
                 } else {
                     atomic_fetch_add_explicit(&stage->lock.seq_lock, 1, memory_order_release);
                     // printf("当前stage容量不足,无法申请\n");
+                    printf("stage_alloc_pessimistic exit");
+                    // exit(-11);
                     return (block_alloc_t){
                         .ptr = NULL,
                         .size = 0,

@@ -47,22 +47,22 @@ class NetworkTester:
         #     ,"SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002","SET KEY 2000", "SET KEY 2001", "SET KEY 2002"
         # ]  # 测试数据
         # print("1")
-        # self.message = [f"set KEY{i} {i}" for i in range(1000123)] #+        \
-                        #[f"set KEY{i} {i + 2}" for i in range(1000123)]
+        self.message = [f"set KEY{i} {i}" for i in range(10000)]
+                        # [f"set KEY{i} {i + 2}" for i in range(1000123)]
 
         # self.message = ["SET KEY1 2000", "GET KEY1"]
         # self.message = [f"GET KEY{i}" for i in range(1)]
         # print("2")
         # self.message = ["SET KEY 2000", "GET KEY"]
-        self.message = [f"set KEY{i} {i}" for i in range(1000123)] #+        \
+        # self.message = [f"set KEY{i} {i}" for i in range(10000)] #+        \
         self.byte_message_body = [msg.encode('utf-8') for msg in self.message]
         self.byte_message_size_array = [len(byte_msg).to_bytes(4, 'little', signed=False) for byte_msg in self.byte_message_body] 
         self.byte_message = [length + body for length, body in zip(self.byte_message_size_array, self.byte_message_body)]
         self.recv_message_size = recv_size
-        with open("./test_set.bin", 'wb') as f:
-            # 方法1: 使用 join 拼接
-            f.write(b''.join(self.byte_message))
-            print("./test_set.bin file 创建成功")
+        # with open("./test_set.bin", 'wb') as f:
+        #     # 方法1: 使用 join 拼接
+        #     f.write(b''.join(self.byte_message))
+        #     print("./test_set.bin file 创建成功")
         
         """创建TCP socket"""
     def create_tcp_socket(self):
@@ -211,12 +211,12 @@ class NetworkTester:
 
 def run_single_test():
     """单线程测试"""
-    tester = NetworkTester('192.168.253.134', 5555, 1024)
+    tester = NetworkTester('192.168.253.134', 5656, 1024)
     
     print("=== TCP测试 ===")
     # tester.tcp_client(5)
     # tester.tcp_client(2)
-    # tester.tcp_client2()
+    tester.tcp_client2()
     # print("\n=== UDP测试 ===")
     # udp_results = tester.udp_client(5)
     

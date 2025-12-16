@@ -54,7 +54,7 @@ typedef struct thread_pool_s {
     lock_free_ring_buffer global_queue[MAX_GLOBAL_QUEUE_NUM];
     worker_t *workers;             // Worker数组
     int worker_count;              // Worker数量
-    int (*scheduler_strategy)(void);
+    uint32_t (*scheduler_strategy)(void);
     atomic_uint next_worker_id;    // 用于轮询策略
     
     global_worker_t *global_workers;
@@ -73,7 +73,7 @@ typedef struct thread_pool_s {
 extern uint8_t Thread_Pool_Init(int);
 extern void* Worker_Func(void*);
 extern uint8_t Thread_Pool_Run();
-extern int Thread_Scheduler(void);
+extern uint32_t Thread_Scheduler(void);
 extern thread_pool_t g_thread_pool;
 extern int Process_Data_Task(block_alloc_t *t);
 

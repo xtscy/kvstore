@@ -1,0 +1,1 @@
+/usr/bin/cc -rdynamic CMakeFiles/test1.dir/test1.c.o CMakeFiles/test1.dir/m_btree.c.o CMakeFiles/test1.dir/home/xst/kvstore/memory_pool/memory_pool.c.o -o test1 

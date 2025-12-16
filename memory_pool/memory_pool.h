@@ -145,6 +145,7 @@ extern void fixed_pool_free(fixed_size_pool_t*, void*);
 extern void fixed_pool_destroy(fixed_size_pool_t*);
 extern void fixed_pool_stats(fixed_size_pool_t*);
 extern fixed_size_pool_t *global_fixed_pool;
+// extern fixed_size_pool_t *int_global_fixed_pool;
 
 
 #endif

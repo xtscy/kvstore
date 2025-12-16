@@ -1,0 +1,3 @@
+/home/xst/kvstore/MemoryBTreeLock/CMakeFiles/test1.dir
+/home/xst/kvstore/MemoryBTreeLock/CMakeFiles/edit_cache.dir
+/home/xst/kvstore/MemoryBTreeLock/CMakeFiles/rebuild_cache.dir

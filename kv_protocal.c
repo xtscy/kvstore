@@ -1,16 +1,3 @@
-
-                    //* 这里未成功放入，那么有一个策略就是重新添加到当前连接的ringbuf中，然后把上面malloc的全部都free
-                    //* 那么这里如果直接重新添加，就是添加到环形队列的末尾,由于是从当前连接取出来的，所以必然能够重新插入
-                    //* 这里为了保证，把当前任务push进去。则如果当前线程队列不足就换其他线程。
-                    //* 如果所有线程都没有空间，那么设计一个全局任务队列。
-                    //* 把不能放入的任务放到该全局队列。该全局队列在内存池中申请，这里先设计为malloc。
-                    //* 该全局队列用无锁环形队列，因为是共享的，考虑线程安全性.
-                    //* 如果当前全局任务队列为满，那么再去开辟一个新的全局任务队列。这里后续优化可能涉及到某个时刻可能
-                    //* 会有巨大的请求数据，导致开辟了许多全局任务队列，但是当过了这个峰值。那么就会有多个冗余的全局队列占用内存
-                    //* 那么优化就可以实现对于一个任务都没有的冗余队列的清理。设置一个一般情况下，最多有几个冗余队列。
-                    //* 然后对于超出数量的队列，进行清理.当然这里清理也有策略，可以1个1个的清理这样可以做到
-                    //* 在时间段相差不大的情况下，又有巨大并发数据，那么向内存池申请的次数就会减少，如果内存池不够，向系统申请就会减少
-
 #include "kv_protocal.h"
 #include <string.h>
 #include <poll.h>
@@ -35,25 +22,21 @@ uint32_t read_to_ring(connection_t *c)
 }
 
 //* 处理协议
-
+//* 
 void Process_Message(connection_t *c)
 {
     while (1)
     {
         if (c->read_cache.head == c->read_cache.length)
         {
-            //* 静态缓存区已经被读完,跳到最外层循环重新调用recv
             printf("跳到最外层\n");
             return; //* 直接return结束循环
         }
         else
         {
-            //* 静态缓存区存在数据那么继续处理
             // printf("read_to_ring之前current KEY0:->%s\n", (char*)c->kv_array[0].key);
             read_to_ring(c);
             // printf("read_to_ring之后current KEY0:->%s\n", (char*)c->kv_array[0].key);
-            //* 当把数据读到环形缓冲区后，在该环形缓冲区中处理数据
-            //* 这里设计成，让处理函数内部来实现保证正确写入
             Process_Protocal(c);
             // printf("Process_Protocal之后current KEY0:->%s\n", (char*)c->kv_array[0].key);
 
@@ -105,30 +88,19 @@ int Process_Protocal(connection_t *c)
                     当前所需要Body长度%u, 当前read_rb.Length%d\n", c->current_header, c->read_rb.Length);
                 return -4;//* boby长度不足返回-4
             } else {
-                //* 如果读到BODY，那么去调用调度器，写入某个线程的队列中
-                //* 这里就不再是调用Process_Task
-                //* 而是调用调度器，和写入线程任务队列
-                //* 这里封装函数就是线程安全的，并且一定会加1
-                //* 这里有一个策略是无限循环，直到input到任务队列，然后会break
-                //* 但是这时该协程就会一直占用，直到1个时间轮
-                //* 目前是如果遍历了1遍，没有线程，那么使用共享任务队列
-                //* 这里先就让调度器+1,循环的遍历，不改变原子变量
-                //* 如果为了强轮询一致性，那么就需要持续的改变原子变量
-                //* 这里其实如果说不改变原子，那么当前线程满了后，这个线程push不进去，另外一个线程的原子变量指向这个照样push
-
 
                 //  task_t *task = (task_t*)malloc(sizeof(task_t));
 
-                block_alloc_t block = allocator_alloc(&global_allocator, c->current_header + 1);
+                block_alloc_t block = allocator_alloc(&global_allocator, c->current_header + 1U);
                 // 拿到block,然后写入线程的任务队列中
                 if (block.ptr != NULL) {
                     bzero(block.ptr, block.size);// 多一个/0用于c语言字符串的结束标志
+                    RB_Read_String(&c->read_rb, block.ptr, block.size - 1);
                     block.conn_fd = c->fd;
                     // block.size = c->current_header;
                     // char *temp_payload = malloc(c->current_header);
                     // if (temp_payload != NULL) {
                         // task->payload = temp_payload;
-                        RB_Read_String(&c->read_rb, block.ptr, block.size - 1);
                         // RB_Read_String(&c->read_rb, task->payload, task->payload_len);
                         // if (LK_RB_Write_Task(&g_thread_pool.workers[worker_idx], task, 1) == RING_BUFFER_SUCCESS) {
                         //     printf("task input success\n");
@@ -176,20 +148,20 @@ int Process_Protocal(connection_t *c)
                     //* 如果队列已达上限，那么使用智能退避延迟策略
                     // * 这里用专门的线程来处理全局队列的任务
                     // global queue
-                    // int rn = -1;
-                    // for (int i = 0; i < g_thread_pool.current_queue_num; i++) {
-                    //     int next_queue = atomic_fetch_add_explicit(&g_thread_pool.produce_next_queue_idx, 1, memory_order_release) % g_thread_pool.current_queue_num;
-                    //     if (LK_RB_Write_Block(&g_thread_pool.global_queue[next_queue], &block, 1) == RING_BUFFER_SUCCESS) {
-                    //         sem_post(&g_thread_pool.sem[next_queue]);
-                    //         rn = atomic_load_explicit(&g_thread_pool.sleep_num, memory_order_acquire);
-                    //         if (rn > 0) {
-                    //             pthread_cond_signal(&g_thread_pool.global_cond);
-                    //         }
-                    //         sign = true;
-                    //         break;
-                    //         // printf("放入全局队列");
-                    //     }
-                    // }
+                    int rn = -1;
+                    for (int i = 0; i < g_thread_pool.current_queue_num; i++) {
+                        int next_queue = atomic_fetch_add_explicit(&g_thread_pool.produce_next_queue_idx, 1, memory_order_release) % g_thread_pool.current_queue_num;
+                        if (LK_RB_Write_Block(&g_thread_pool.global_queue[next_queue], &block, 1) == RING_BUFFER_SUCCESS) {
+                            sem_post(&g_thread_pool.sem[next_queue]);
+                            rn = atomic_load_explicit(&g_thread_pool.sleep_num, memory_order_acquire);
+                            if (rn > 0) {
+                                pthread_cond_signal(&g_thread_pool.global_cond);
+                            }
+                            sign = true;
+                            break;
+                            // printf("放入全局队列");
+                        }
+                    }
  
                     //? 如果连全局都放不下，那么就使用智能退避
                     //? 这里是协程框架所以直接用yield的而非sleep
