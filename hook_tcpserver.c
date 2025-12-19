@@ -11,6 +11,15 @@
 
 #define MAX_EVENTS 2
 
+
+typedef struct process_data_s {
+
+	int current_fd;
+	in_addr_t s_addr;
+	
+} process_data_t;
+
+
 extern _Atomic(uint16_t) fd_lock[20];
 void server_reader(void *arg) {
 	int fd = *(int *)arg;
@@ -145,9 +154,122 @@ void server(void *arg) {
 
 // 开辟多个小块因为指令随机到来，
 
-// 
+// *这里需要两个函数，一个是主服务器运行的接收从机连接的函数， 
+//* 一个是从机要执行连接主机的函数，连接主机，主机接收连接，然后从机发送自己的任务处理端口和自己的ip
+//* 主机接收到ip和端口号，然后主机给从机发送连接请求，然后从机接收，然后建立连接
+//* 然后主机发送自己内存中的数据给从机,按照协议格式进行发送，从机的任务线程进行数据的同步
+//* 然后主机接收操作时，同时把这个操作也发给从机，从机的任务线程执行该操作，把数据写到内存中
+//* 这里从机不用写磁盘，也不用读磁盘，同步来自于主机，没有增量日志和全量日志
 
-int NtyCo_Entry(unsigned short p) {
+//todo 主机需要实现连接的接收并接收网络信息，当从机断开连接后
+//todo 回连从机的任务处理服务用接收的ip和端口号,然后发送当前内存中的数据按照协议格式，并在接收操作时转发操作
+//todo 从机需要实现主动连接主机，并且发送自己的ip和任务端口号，然后即可断开连接
+
+
+void process_slave(void *arg) {
+
+
+	
+	
+	
+}
+
+
+void process_master(void *arg) {
+	// 这里已经接收到了一个连接然后去接收数据,协议格式以\r\n结尾
+	// 实现接收从机请求并接收数据的功能
+	// 这里就一个一个的处理吗，先这样，后续可以批处理
+	// 给一个时间区间，同一个区间的一起处理
+	process_data_t *pd = (process_data_t*)arg;
+	char buffer[1024] = {0};
+	ssize_t bytes_received = 0;
+	ssize_t total = 0;
+	while (true) {
+		bytes_received = recv(pd->current_fd, buffer + total, sizeof(buffer) - 1, 0);
+		total += bytes_received;
+		// 作协议解析
+		// 如果不以\r\n结尾, 那么继续循环读，直到判断以\r\n结尾，那么接收了完整的数据，然后退出循环
+		if (buffer[total - 2] == '\r' 
+		&& buffer[total - 1] == '\n') 
+		{
+			break;
+		}
+	}
+
+	// 读到完整请求,处理字符串
+	// 127.0.0.1,这里不需要ip,只需要从机的任务处理服务的端口号
+	in_port_t port = atoi(buffer);
+	// 拿到了port和ip信息
+	// 连接从机的任务服务
+	// 先关闭当前的连接,对端读到0,表示对端知道消息接收成功，然后退出连接任务函数
+	// 由当前线程去连接任务服务端口
+	close(pd->current_fd);
+	// 连接对端，需要对端的ip和端口并且都需要是网络序
+	struct sockaddr_in slave_addr = {0};
+	memset(&slave_addr, 0, sizeof(slave_addr));
+	slave_addr.sin_family = AF_INET;
+	slave_addr.sin_port = htons(port);
+	slave_addr.sin_addr.s_addr = pd->s_addr;
+
+	int slave_fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (slave_fd < 0) {
+        perror("socket creation failed");
+		printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+		printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+		printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+        return -1;
+    }
+	
+	int ret = connect(slave_fd, (struct sockaddr*)&slave_addr, sizeof(slave_addr));
+	if (ret < 0) {
+		perror("connection failed");
+		printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+		printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+		printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+		printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
+        close(slave_fd);
+        return -1;
+	}
+
+	// 连接成功，那么遍历内存中的数据
+	// 组织成正确的协议格式发送给对端
+	// 这里的内存数据结构是b树，那么如何遍历呢，还是需要一个类似的迭代器
+	// 去指向每一个数据
+	
+}
+// 
+// 主机运行该函数
+void replicate(void *arg) {
+	// 接收从机请求，以及接收从机的ip和端口
+	// 再向从机的任务端口发送连接
+	unsigned short port = *(unsigned short*)arg;
+	//listen recv
+	int fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (fd < 0) return ;
+
+	struct sockaddr_in local, remote;
+	local.sin_family = AF_INET;
+	local.sin_port = htons(port);
+	local.sin_addr.s_addr = INADDR_ANY;
+	bind(fd, (struct sockaddr*)&local, sizeof(struct sockaddr_in));
+	listen(fd, 20);
+	// 监听，然后接收连接，然后去执行同步任务
+	printf("listen master port : %d\n", port);
+
+	while (!0) {
+		socklen_t len = sizeof(struct sockaddr_in);
+		int cli_fd = accept(fd, (struct sockaddr*)&remote, &len);
+		nty_coroutine *pro_mst;
+		process_data_t *pd = (process_data_t*)malloc(sizeof(process_data_t));
+		pd->current_fd = cli_fd;
+		pd->s_addr = remote.sin_addr.s_addr;
+		nty_coroutine_create(&pro_mst, process_master, pd);
+	}
+}
+
+
+extern volatile bool stage;
+int NtyCo_Entry(unsigned short p, unsigned short master) {
 	size_t size = sizeof(kv_type_t);
 
 	// small_kv_pool = fixed_pool_create(SMALL_SIZE, 3000000);
@@ -156,10 +278,14 @@ int NtyCo_Entry(unsigned short p) {
 
 	// g_kv_array = (kv_type_t*)malloc(sizeof(kv_type_t) * KV_ARRAY_SIZE);
 	printf("8\n");
-	int port = p;
-	
+	unsigned short port = p;
+	unsigned short m_port = master;
 	nty_coroutine *co = NULL;
 	nty_coroutine_create(&co, server, &port);
+	nty_coroutine *m_co = NULL;
+	if (stage == true) {
+		nty_coroutine_create(&m_co, replicate, &m_port);
+	}
 	printf("9\n");
 	nty_schedule_run();
 	printf("10\n");

@@ -27,15 +27,26 @@ typedef struct {
     void *data_ptrs;
 } bkey_t;
 
+typedef enum btree_ite_states_e {
+
+    ITER_STATE_START,      // 初始状态，需要找到第一个元素
+    ITER_STATE_AT_KEY,     // 在当前关键字位置,可以不用
+    ITER_STATE_ENTER_CHILD, // 当前节点状态为进入子树
+    ITER_STATE_BACKTRACK,  // 表示以从当前节点向上回溯
+    ITER_STATE_END         // 迭代结束
+    
+} btree_ite_states;
 typedef struct btree_node_s {
 
-    // 这里用int来作为键值
     bkey_t *keys;
-    // int *keys;
     struct btree_node_s **children;
     int num_keys;
     bool is_leaf;
+    // 指向父节点
+    struct btree_node_s *parent;
 
+    int ite_index;
+    btree_ite_states state;
 } btree_node_t;
 
 
@@ -58,6 +69,16 @@ typedef struct search_result_s {
 } search_result_t;
 
 
+
+typedef struct btree_iterator_s {
+    // 
+    btree_node_t *current;
+    
+} btree_iterator_t;
+
+extern btree_iterator_t* create_iterator(btree_t*);
+extern btree_iterator_t* iterator_find_next(btree_iterator_t *iterator);
+extern bkey_t iterator_get(btree_iterator_t*); 
 
 extern btree_t* btree_create(int);
 // tree, key

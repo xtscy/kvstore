@@ -1,3 +1,4 @@
+
 #include "m_btree.h"
 
 #include <stdlib.h>
@@ -8,6 +9,150 @@
 
 fixed_size_pool_t *int_global_fixed_pool = NULL;
 btree_t *global_m_btree = NULL;
+
+
+void order_init(btree_node_t *node) {
+
+    // 先初始化所有children节点然后初始化当前节点
+    // 和遍历值的逻辑不同,这里逻辑类似于后序遍历
+    // 因为是多叉树
+    
+    if (!node->is_leaf) {
+        // 不是叶子节点必然有num_keys
+        for (int i = 0; i <= node->num_keys; i++) {
+            order_init(node->children[i]);
+        }
+        node->ite_index = 0;
+        node->state = ITER_STATE_START;
+        return;
+    }
+    
+    node->ite_index = 0;
+    node->state = ITER_STATE_START;
+    return;
+    
+}
+
+
+btree_iterator_t* create_iterator(btree_t *tree) {
+
+    if (tree == NULL || tree->root == NULL) {
+        perror("tree is unfair\n");
+        exit(-11);
+    }
+    
+    btree_iterator_t* ite = (btree_iterator_t*)malloc(sizeof(btree_iterator_t));
+    if (ite == NULL) {
+        perror("create bt ite failed\n");
+        exit(-11);
+    }
+    
+    // init 所有节点为的index为0
+    ///这里先调用遍历，把全部都初始化
+    
+    
+    btree_node_t *cur = tree->root;
+    order_init(cur);
+
+    while (!cur->is_leaf) {
+        cur->state = ITER_STATE_ENTER_CHILD;
+        //init 因为可能不是第一次迭代
+        cur->ite_index = 0;
+        cur = cur->children[0];
+    }
+
+    ite->current = cur;
+    cur->ite_index = 0;
+    cur->state = ITER_STATE_AT_KEY;
+
+    return ite;
+}
+
+
+bkey_t iterator_get(btree_iterator_t* iterator) {
+    if (iterator->current->state == ITER_STATE_AT_KEY) {
+        return iterator->current->keys[iterator->current->ite_index];
+    } else {
+        perror("state of node is not ITER_STATE_AT_KEY\n");
+        exit(-13);
+    }
+}
+
+btree_iterator_t* iterator_find_next(btree_iterator_t *iterator) {
+    if (iterator == NULL) {
+        perror("find next ite failed\n");
+        exit(-11);
+    }
+
+    // 是否在当前节点的最后一个
+    // 去到节点的右子树
+    // 判断是否是叶子节点
+
+    // 中序遍历
+
+    if (iterator->current->is_leaf) {
+        //叶子节点 判断是否是最后一个, 最后一个则上去
+        if (iterator->current->ite_index < iterator->current->num_keys - 1) {
+            iterator->current->ite_index++;
+            // if (iterator->current->ite_index == iterator->current->num_keys - 1) {
+
+            // }
+            return iterator;
+        } else {// 最后一个
+            if (iterator->current->parent != NULL) {
+                // 当不是最后一个child回溯时，把当前标志设置为ITER_STATE_AT_KEY
+                // 如果是最后一个child回溯，那么把标志设置为ITER_STATE_BACKTRACK
+                btree_node_t *parent = iterator->current->parent;
+                
+                while (parent->state == ITER_STATE_BACKTRACK) {
+                    if (parent->parent == NULL) {
+                        iterator->current = parent;
+                        parent->state = ITER_STATE_END;
+                        return iterator;
+                    }
+                    parent = parent->parent;
+                }
+                // 到达非backtrack节点
+                // 这里回溯到上一个标志为ITER_STATE_ENTER_CHILD的节点,设置AT_KEY,也可以不设置
+                iterator->current = parent;
+                iterator->current->state = ITER_STATE_AT_KEY;
+                return iterator;
+            } else {
+                    iterator->current->state = ITER_STATE_END;
+                    return iterator;
+            }
+        }
+    } else {// 不是叶子节点
+        // 当前是内部节点
+        // 这里如果有child那么去到child，并且当前去到的是最后一个child那么当child回溯时需要一直回溯
+        // 这里设置ITER_STATE_BACKTRACK，然后当child回溯时判断标志继续回溯
+        // 从最左开始的，去到当前索引的右区间树的最左
+        // 这里还有更改index，在上去的时候可以直接访问下一个键
+        if (iterator->current->ite_index != iterator->current->num_keys - 1) {
+            iterator->current->ite_index++;
+            iterator->current->state = ITER_STATE_ENTER_CHILD;
+            iterator->current = iterator->current->children[iterator->current->ite_index];
+
+            while (!iterator->current->is_leaf) {
+                iterator->current->state = ITER_STATE_ENTER_CHILD;
+                iterator->current = iterator->current->children[0];
+            }
+            iterator->current->state = ITER_STATE_AT_KEY;
+
+        } else {
+            iterator->current->state = ITER_STATE_BACKTRACK;
+            iterator->current = iterator->current->children[iterator->current->num_keys];
+            while (!iterator->current->is_leaf) {
+                iterator->current->state = ITER_STATE_ENTER_CHILD;
+                iterator->current = iterator->current->children[0];
+            }
+            iterator->current->state = ITER_STATE_AT_KEY;
+        }
+    }
+}
+
+
+
 static btree_node_t* create_node(bool is_leaf, int t) {
 
     btree_node_t* node = (btree_node_t*)malloc(sizeof(btree_node_t));
@@ -39,6 +184,9 @@ static btree_node_t* create_node(bool is_leaf, int t) {
 
     node->is_leaf = is_leaf;
     node->num_keys = 0;
+    // 外部赋值parent
+    node->parent = NULL;
+    node->ite_index = 0;
     return node;
 }
 
@@ -104,6 +252,7 @@ static bool insert_into_leaf(btree_node_t* node, bkey_t key, fixed_size_pool_t *
 // 分裂节点，把中间键拿到parent,index是当前键插入到parent的哪个位置
 // 所以parent的num_keys > index
 // child作为当前的左孩子
+// 这里left_child的parent必须已经设定
 static void split_child(btree_node_t* parent, int index, btree_node_t* left_child, int t) {
 
     // 这里不需要判断parent是否是满，因为insert保证了路径上的节点如果满都会被split
@@ -111,6 +260,8 @@ static void split_child(btree_node_t* parent, int index, btree_node_t* left_chil
         // 创建新节点
     bool is_leaf = left_child->is_leaf;
     btree_node_t* right_child = create_node(is_leaf, t);
+    right_child->parent = left_child->parent;
+
     // printf("right_node->is_leaf %d\n", right_child->is_leaf);
     if (!right_child) {
         printf("malloc new_child failed\n");
@@ -181,6 +332,9 @@ bool btree_insert(btree_t* tree, bkey_t key, fixed_size_pool_t *pool) {
         // printf("up malloc\n");
         // 让new_root指向当前root
         new_root->children[0] = current;
+
+        current->parent = new_root;
+        
         // printf("-----------split child------------\n");
         split_child(new_root, 0, current, t);
         // printf("------------split child end----------------\n");
@@ -664,12 +818,15 @@ bool btree_remove(btree_t* tree, bkey_t key, fixed_size_pool_t *pool) {
 }
 
 int test_idx = 0;
-
+int next_line = 0;
 static void inorder_traversal(btree_node_t* node) {
 
     if (node->is_leaf) {
         for (int i = 0; i < node->num_keys; i++) {
             printf("%s : %d || ", node->keys[i].key, *((int*)node->keys[i].data_ptrs));
+            if (++next_line % 15 == 0) {
+                printf("\n");
+            }
         }
         return;
     }
@@ -678,6 +835,9 @@ static void inorder_traversal(btree_node_t* node) {
         inorder_traversal(node->children[i]);
         if (i != node->num_keys) {
             printf("%s : %d || ", node->keys[i].key, *((int*)node->keys[i].data_ptrs));
+            if (++next_line % 15 == 0) {
+                printf("\n");
+            }
         }
     }
 }
