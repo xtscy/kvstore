@@ -9,6 +9,10 @@
 
 char* order[] = {"set", "get", "del", "incr", "decr"};
 
+extern int slave_array[10];
+extern atomic_int slave_cnt;
+extern volatile bool stage;
+
 _Atomic(uint16_t) fd_lock[20];
 // extern kv_type_t* g_kv_array;
 
@@ -158,11 +162,36 @@ int Process_Data_Task(block_alloc_t *block) {
                     //* 这里调用hook过的recv，发送消息并且可能让出
                     char buf[24] = {0};
                     if (flag == 0) {
-                        //* 发送OK
+                        // 发送OK
                         // buf = "OK";
                         sprintf(buf, "ok set %s %s", token[cur_token + 1], token[cur_token + 2]);
                         printf("set %s %s\n", token[cur_token + 1], token[cur_token + 2]);
                         printf("send:%s\n", buf);
+                        
+                        
+                        if (stage == true) {
+                            int cnt = atomic_load_explicit(&slave_cnt, memory_order_acquire);
+                            if (cnt > 0) {
+                                // 这里可能多个线程都去send,这里使用了内核的socket锁
+                                // 实际上会串行
+                                char innbuf[64] = {0};
+                                int used = 0;
+                                used += snprintf(buf + sizeof(int), sizeof(innbuf) - sizeof(int), "set %s %s", token[cur_token + 1], token[cur_token + 2]);
+                                if (used >= sizeof(innbuf) - 4) {
+                                    perror("发送的消息过长,exit退出\n");
+                                    printf("!!!!!!!!!!!!!!!!!!!!!\n");
+                                    printf("!!!!!!!!!!!!!!!!!!!!!\n");
+                                    printf("!!!!!!!!!!!!!!!!!!!!!\n");
+                                    exit(-13);
+                                }
+                                memcpy(innbuf, strlen(innbuf + 4), sizeof(int));
+                                
+                                for (int i = 0; i < cnt; i++) {
+                                    ssend(slave_array[i], innbuf, strlen(innbuf), 0);
+                                }
+                            }
+                        }
+
                     } else if (flag == -1) {
                         sprintf(buf, "%s", "FALSE");
                         // buf = "FALSE";

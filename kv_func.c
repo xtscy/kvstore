@@ -74,8 +74,10 @@ int KV_GET(char *key, int* val) {
     printf("3\n");
     printf("GEt key:-> %s\n", key);
     int ret = btree_search_c(global_bplus_tree, key, val);
-    if (ret == 0) {
-        persister_get(global_persister, key);
+    if (ret == 0) {// 从机和主机都可以get,但是只有主机需要持久化
+        if (stage == true) {
+            persister_get(global_persister, key);
+        }
         return 0;
     }
     // 
@@ -149,6 +151,8 @@ int KV_GET(char *key, int* val) {
 
 // 
 
+extern volatile bool stage;
+
 int KV_SET(char *key, char *val) {
 
 
@@ -172,11 +176,17 @@ int KV_SET(char *key, char *val) {
         temp_key.data_ptrs = dptr;
         sprintf(temp.key, "%s", key);
         // 写入内存
-        btree_insert(global_m_btree, temp_key, int_global_fixed_pool);
         // 写入增量文件
         // 1 key1 value1\r\n1 key2 value2\r\n
         // 调用封装的c接口的insert操作        
-        persister_insert(global_persister, temp_key.key, *((int*)temp_key.data_ptrs));
+        if (stage == true) {
+            // 目前还没有实现从机的insert操作，后续可实现
+            // 每个从机同时连接到主机的task_port,然后把insert转发给主机
+            // 然后由主机来把请求转发给所有的从机，从机处理主机的请求
+            // 这里需要再写一个从机接收外部连接发送的命令然后转发给主机任务端口的线程
+            btree_insert(global_m_btree, temp_key, int_global_fixed_pool);
+            persister_insert(global_persister, temp_key.key, *((int*)temp_key.data_ptrs));
+        }
 
         
         

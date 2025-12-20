@@ -19,37 +19,53 @@ typedef struct process_data_s {
 	
 } process_data_t;
 
+typedef struct ports_s {
+	unsigned short m_port;
+	unsigned short task_port;
+} ports_t;
 
-extern _Atomic(uint16_t) fd_lock[20];
+// 主线程负责发送，所以只需要存储值即可
+// 这里还需要考虑到从机如果断开连接，那么这里应该清除对应的fd
+// 这里可以使用最简单的send返回值判断，而非recv得到返回值0
+// typedef struct slave_fd_s {
+// 	int fd;
+// 	bool true;
+// } slave_fd_t;
+
+int slave_array[10];
+atomic_int slave_cnt;
+
+extern _Atomic uint16_t fd_lock[20];
 void server_reader(void *arg) {
 	int fd = *(int *)arg;
 	// uint32_t read_byte = 0;
 	int ret = 0;
-//* 在这里初始化环形缓冲区,并且用一个结构体来描述当前连接,这是为了解决粘包和分包问题
-//* 编译时初始化，性能更好
-	connection_t c = {0};
+// 在这里初始化环形缓冲区,并且用一个结构体来描述当前连接,解决粘包和分包问题
+
+	connection_t *c = (connection_t*)malloc(sizeof(connection_t));
+
 	
-	c.fd = fd;
-	RB_Init(&c.read_rb, RING_BUF_SIZE);
-	int epoll_fd = epoll_create1(0);
-	if (epoll_fd < 0) {
-        perror("epoll_create1");
-        // close(server_fd);
-		exit(-12);
-        // return 1;
-    }
-	struct epoll_event ev = {0};
+	c->fd = fd;
+	// RB_Init(&c.read_rb, RING_BUF_SIZE);
+	// int epoll_fd = epoll_create1(0);
+	// if (epoll_fd < 0) {
+    //     perror("epoll_create1");
+    //     // close(server_fd);
+	// 	exit(-12);
+    //     // return 1;
+    // }
+	// struct epoll_event ev = {0};
     
-    ev.events = EPOLLIN;
-    ev.data.fd = fd;
+    // ev.events = EPOLLIN;
+    // ev.data.fd = fd;
     
-    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &ev) < 0) {
-        perror("epoll_ctl ADD");
-		exit(-6);
+    // if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, fd, &ev) < 0) {
+        // perror("epoll_ctl ADD");
+		// exit(-6);
         // return 
-    }
-	struct epoll_event events[MAX_EVENTS];
-	int nfds = 0;
+    // }
+	// struct epoll_event events[MAX_EVENTS];
+	// int nfds = 0;
 	while (1) {
 		// char buf[1024] = {0};
 		// ret = recv(fd, buf, 1024, 0);
@@ -57,13 +73,13 @@ void server_reader(void *arg) {
 		//* 这里尽可能多的读到环形缓冲区，然后在依次放入环形缓冲区处理消息
 		//* 可以用一个循环，如果缓冲区读完了，那就继续从临时缓冲区拿。缓冲区读完则跳出处理，来到外层继续下一个循环。
 		// *这里可能该read_cache中也存在拆包所以这里还需要判断read_cache
-		printf("wait recv\n");
-		nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
-		if (nfds < 0) {
-            perror("epoll_wait failed \n");
-			exit(-5);
+		// printf("wait recv\n");
+		// nfds = epoll_wait(epoll_fd, events, MAX_EVENTS, -1);
+		// if (nfds < 0) {
+            // perror("epoll_wait failed \n");
+			// exit(-5);
             // break;
-        }
+        // }
 		// 这里如果读到READ_CACHE_SIZE,最后一个请求的数据在下一个包里面，这里就是一个拆包的处理
 		// if (c.read_cache.head != c.read_cache.length) {
 
@@ -72,6 +88,8 @@ void server_reader(void *arg) {
 		// 	perror("epoll_wait failed\n");
 		// 	exit(-5);
 		// }
+		// 这里socket有内核锁，也可以直接去recv
+		// 多个线程最后都会变成串行化
 		uint16_t val = 0;
 		do {
 			val = atomic_load_explicit(&fd_lock[fd], memory_order_acquire);
@@ -80,7 +98,7 @@ void server_reader(void *arg) {
 				continue;
 			}
 			if (atomic_compare_exchange_weak_explicit(&fd_lock[fd], &val, val + 1, memory_order_release, memory_order_relaxed)) {
-				ret = recv(fd, c.read_cache.cache, READ_CACHE_SIZE, 0);
+				ret = recv(fd, c->read_cache.cache, READ_CACHE_SIZE, 0);
 				atomic_fetch_add_explicit(&fd_lock[fd], 1, memory_order_release);
 				break;
 			}
@@ -89,10 +107,10 @@ void server_reader(void *arg) {
 		// ret = recv(fd, c.read_cache.cache, READ_CACHE_SIZE, 0);
 		if (ret > 0) {
 			printf("ret:%d\n",ret);
-			printf("c->read_rb.Length:%u\n",c.read_rb.Length);
-			c.read_cache.length = ret;
-			c.read_cache.head = 0;
-			Process_Message(&c);//* 处理一个完整的请求后发送数据
+			printf("c->read_rb.Length:%u\n",c->read_rb.Length);
+			c->read_cache.length = ret;
+			c->read_cache.head = 0;
+			Process_Message(c);//* 处理一个完整的请求后发送数据
 			//* 这里可以优化成处理完全部数据后，再调用1次send来发送所有数据
 			// printf("read from server: %.*s\n", ret, buf);
 			// #if UseNet == NtyCo
@@ -165,13 +183,68 @@ void server(void *arg) {
 //todo 回连从机的任务处理服务用接收的ip和端口号,然后发送当前内存中的数据按照协议格式，并在接收操作时转发操作
 //todo 从机需要实现主动连接主机，并且发送自己的ip和任务端口号，然后即可断开连接
 
+extern volatile char* m_ip;
 
-void process_slave(void *arg) {
+void replicate_slave(void *arg) {
 
+	ports_t *ports = (ports_t*)arg;
+	in_port_t p_task = ports->task_port;
+	in_port_t p_ms = ports->m_port;
+	// 连接主机发送当前任务的端口号
+	int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+	if (sock_fd < 0) {
+		perror("socket creation failed");
+		exit(-13);
+	}
+	struct sockaddr_in serv_addr = {0};
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_port = htons(p_ms);
+	if (inet_pton(AF_INET, m_ip, &serv_addr.sin_addr) <= 0) {
+		perror("invalid address");
+		close(sock_fd);
+		exit(-13);
+	}
 
-	
-	
-	
+	int ret = connect(sock_fd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
+	if (ret < 0) {
+		perror("connect failed");
+		// 详细错误处理
+	  switch(errno) {
+		  case ECONNREFUSED:
+			  printf("No service listening on port %d\n", PORT);
+			  break;
+		  case ETIMEDOUT:
+			  printf("Connection timeout\n");
+			  break;
+		  case ENETUNREACH:
+			  printf("Network unreachable\n");
+			  break;
+		  default:
+			  printf("Error code: %d\n", errno);
+	  }
+	  close(sock_fd);
+	  exit(-15);
+	}
+	char temp_buf[16] = {0};
+	int actual_size = snprintf(temp_buf, sizeof(temp_buf), "%u\r\n", p_ms);
+	if (actual_size >= sizeof(temp_buf)) {
+		perror("端口号过长");
+		exit(-14);
+	}
+	ssize_t r_sd = send(sock_fd, temp_buf, strlen(temp_buf), 0);
+	if (r_sd != strlen(temp_buf)) {
+		perror("send发送失败, exit");
+		exit(-14);
+	}
+
+	sszie_t r_rv = recv(sock_fd, temp_buf, 1, 0);
+	if (r_rv == 0) {
+		close(sock_fd);
+		return;
+	} else {
+		perror("recv接收错误");
+		exit(-11);
+	}
 }
 
 
@@ -185,7 +258,7 @@ void process_master(void *arg) {
 	ssize_t bytes_received = 0;
 	ssize_t total = 0;
 	while (true) {
-		bytes_received = recv(pd->current_fd, buffer + total, sizeof(buffer) - 1, 0);
+		bytes_received = recv(pd->current_fd, buffer + total, sizeof(buffer) - 1 - total, 0);
 		total += bytes_received;
 		// 作协议解析
 		// 如果不以\r\n结尾, 那么继续循环读，直到判断以\r\n结尾，那么接收了完整的数据，然后退出循环
@@ -210,7 +283,7 @@ void process_master(void *arg) {
 	slave_addr.sin_family = AF_INET;
 	slave_addr.sin_port = htons(port);
 	slave_addr.sin_addr.s_addr = pd->s_addr;
-
+	free(pd);
 	int slave_fd = socket(AF_INET, SOCK_STREAM, 0);
 	if (slave_fd < 0) {
         perror("socket creation failed");
@@ -235,7 +308,43 @@ void process_master(void *arg) {
 	// 组织成正确的协议格式发送给对端
 	// 这里的内存数据结构是b树，那么如何遍历呢，还是需要一个类似的迭代器
 	// 去指向每一个数据
-	
+//! 这里的迭代器遍历不是安全的，这里先只连接一个，如果是多个的话，应该用锁保护
+//! 并且这里遍历的时候相当于是读操作了对于
+	pthread_rwlock_wrlock(&global_m_btree->rwlock)
+	btree_iterator_t *iterator = create_iterator(global_m_btree);
+	char buf[64] = {0};
+	int used = 0;
+	// 按照协议格式构造请求send给slave
+	// 这里发送set请求
+	// [lenth]set key val[lenth]set key val
+	while (ite->current->state != ITER_STATE_END) {
+		bkey_t key_val = iterator_get(iterator);
+		
+		used = 0;
+		used += snprintf(buf + sizeof(int), sizeof(buf) - sizeof(int), "set %s %d", key_val.key, *(int*)key_val.data_ptr);
+		if (used >= sizeof(buf) - 4) {
+			perror("发送的消息过长,exit退出\n");
+			printf("!!!!!!!!!!!!!!!!!!!!!\n");
+			printf("!!!!!!!!!!!!!!!!!!!!!\n");
+			printf("!!!!!!!!!!!!!!!!!!!!!\n");
+			exit(-13);
+		}
+		memcpy(buf, key_val.data_ptrs, sizeof(int));
+		
+		send(slave_fd, buf, strlen(buf), 0);
+		
+        iterator_find_next(iterator);
+    }
+	// 记录和保存当前fd，用于后续的同步操作,这里先用最简单的数组保存,后续可以用哈希存储
+	int idx = atomic_load_explicit(&slave_cnt, 1, memory_order_relaxed);
+	if (idx > 9) {
+		perror("slave 数量过多, exit退出\n");
+		exit(-14);
+	}
+
+	slave_array[slave_cnt] = slave_fd;
+	atomic_store_explicit(&slave_cnt, idx + 1, memory_order_release);
+	pthread_rwlock_unlock(&global_m_btree->rwlock);
 }
 // 
 // 主机运行该函数
@@ -267,9 +376,9 @@ void replicate(void *arg) {
 	}
 }
 
-
+//true master,false slave
 extern volatile bool stage;
-int NtyCo_Entry(unsigned short p, unsigned short master) {
+int NtyCo_Entry(unsigned short p, unsigned short p2) {
 	size_t size = sizeof(kv_type_t);
 
 	// small_kv_pool = fixed_pool_create(SMALL_SIZE, 3000000);
@@ -278,13 +387,23 @@ int NtyCo_Entry(unsigned short p, unsigned short master) {
 
 	// g_kv_array = (kv_type_t*)malloc(sizeof(kv_type_t) * KV_ARRAY_SIZE);
 	printf("8\n");
+	unsigned short *port = (unsigned short*)malloc(sizeof(unsigned short));
+	*port = p;
+	unsigned short *m_port = (unsigned short*)malloc(sizeof(unsigned short));
+	*m_port = p2;
+	
 	unsigned short port = p;
-	unsigned short m_port = master;
+	unsigned short m_port = p2;
 	nty_coroutine *co = NULL;
-	nty_coroutine_create(&co, server, &port);
-	nty_coroutine *m_co = NULL;
+	nty_coroutine_create(&co, server, port);
+	nty_coroutine *ms_co = NULL;
 	if (stage == true) {
-		nty_coroutine_create(&m_co, replicate, &m_port);
+		nty_coroutine_create(&ms_co, replicate, m_port);
+	} else {
+		ports_t *ports = (ports_t*)malloc(sizeof(ports_t));
+		ports->m_port = *m_port;
+		ports->task_port = *port;
+		nty_coroutine_create(&ms_co, replicate_slave, ports);
 	}
 	printf("9\n");
 	nty_schedule_run();

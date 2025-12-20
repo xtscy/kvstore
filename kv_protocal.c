@@ -174,7 +174,7 @@ int Process_Protocal(connection_t *c)
                     nty_schedule_sched_sleepdown(co, backoff_us);
                     backoff_us *= 2;
                 }
-          
+
                 c->state = PARSE_STATE_HEADER;
 
 //            //    printf("read_rb.Length:%u, current_head:%u\n", c->read_rb.Length, c->current_header);

@@ -1,5 +1,4 @@
 #include "../m_btree.h"
-// #include <string.c>
 #include <stdlib.h>
 #include <unistd.h>
 btree_t *global_tree;
