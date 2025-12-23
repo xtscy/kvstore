@@ -38,15 +38,17 @@ atomic_int slave_cnt;
 extern _Atomic uint16_t fd_lock[20];
 void server_reader(void *arg) {
 	int fd = *(int *)arg;
+	// free(arg);
 	// uint32_t read_byte = 0;
 	int ret = 0;
 // 在这里初始化环形缓冲区,并且用一个结构体来描述当前连接,解决粘包和分包问题
 
 	connection_t *c = (connection_t*)malloc(sizeof(connection_t));
-
-	
+	memset(&c->read_cache, 0, sizeof(read_cache_t));
+	c->state = PARSE_STATE_HEADER;
+	c->current_header = 0;
 	c->fd = fd;
-	// RB_Init(&c.read_rb, RING_BUF_SIZE);
+	RB_Init(&c->read_rb, RING_BUF_SIZE);
 	// int epoll_fd = epoll_create1(0);
 	// if (epoll_fd < 0) {
     //     perror("epoll_create1");
@@ -91,18 +93,21 @@ void server_reader(void *arg) {
 		// 这里socket有内核锁，也可以直接去recv
 		// 多个线程最后都会变成串行化
 		uint16_t val = 0;
-		do {
-			val = atomic_load_explicit(&fd_lock[fd], memory_order_acquire);
+		// do {
+		// 	val = atomic_load_explicit(&fd_lock[fd], memory_order_acquire);
 			
-			if (val & 1) {
-				continue;
-			}
-			if (atomic_compare_exchange_weak_explicit(&fd_lock[fd], &val, val + 1, memory_order_release, memory_order_relaxed)) {
-				ret = recv(fd, c->read_cache.cache, READ_CACHE_SIZE, 0);
-				atomic_fetch_add_explicit(&fd_lock[fd], 1, memory_order_release);
-				break;
-			}
-		} while(true);
+		// 	if (val & 1) {
+		// 		continue;
+		// 	}
+		// 	if (atomic_compare_exchange_weak_explicit(&fd_lock[fd], &val, val + 1, memory_order_release, memory_order_relaxed)) {
+		// 		ret = recv(fd, c->read_cache.cache, READ_CACHE_SIZE, 0);
+		// 		atomic_fetch_add_explicit(&fd_lock[fd], 1, memory_order_release);
+		// 		break;
+		// 	}
+		// } while(true);
+		c->read_cache.length = 0;
+		c->read_cache.head = 0;
+		ret = recv(fd, c->read_cache.cache, READ_CACHE_SIZE, 0);
 		
 		// ret = recv(fd, c.read_cache.cache, READ_CACHE_SIZE, 0);
 		if (ret > 0) {
@@ -125,11 +130,11 @@ void server_reader(void *arg) {
 		} else if (ret == 0) {	
 			close(fd);
 			
-			break;
+			return;
 		} else  {
 			close(fd);
 			printf("recv failed\n");
-			exit(-7);
+			abort();
 			// break;
 		}
 
@@ -156,10 +161,10 @@ void server(void *arg) {
 	while (!0) {
 		
 		socklen_t len = sizeof(struct sockaddr_in);
-		int cli_fd = accept(fd, (struct sockaddr*)&remote, &len);
+		int *cli_fd = (int*)malloc(sizeof(int));
+		*cli_fd = accept(fd, (struct sockaddr*)&remote, &len);
 		nty_coroutine *read_co;
-		nty_coroutine_create(&read_co, server_reader, &cli_fd);
-
+		nty_coroutine_create(&read_co, server_reader, cli_fd);
 	}
 	
 }
@@ -199,7 +204,7 @@ void replicate_slave(void *arg) {
 	struct sockaddr_in serv_addr = {0};
 	serv_addr.sin_family = AF_INET;
 	serv_addr.sin_port = htons(p_ms);
-	if (inet_pton(AF_INET, m_ip, &serv_addr.sin_addr) <= 0) {
+	if (inet_pton(AF_INET, (const char*)m_ip, & serv_addr.sin_addr) <= 0) {
 		perror("invalid address");
 		close(sock_fd);
 		exit(-13);
@@ -211,7 +216,7 @@ void replicate_slave(void *arg) {
 		// 详细错误处理
 	  switch(errno) {
 		  case ECONNREFUSED:
-			  printf("No service listening on port %d\n", PORT);
+			  printf("No service listening on port %u\n", p_ms);
 			  break;
 		  case ETIMEDOUT:
 			  printf("Connection timeout\n");
@@ -237,7 +242,7 @@ void replicate_slave(void *arg) {
 		exit(-14);
 	}
 
-	sszie_t r_rv = recv(sock_fd, temp_buf, 1, 0);
+	ssize_t r_rv = recv(sock_fd, temp_buf, 1, 0);
 	if (r_rv == 0) {
 		close(sock_fd);
 		return;
@@ -290,7 +295,7 @@ void process_master(void *arg) {
 		printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 		printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 		printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
-        return -1;
+        return ;
     }
 	
 	int ret = connect(slave_fd, (struct sockaddr*)&slave_addr, sizeof(slave_addr));
@@ -301,7 +306,7 @@ void process_master(void *arg) {
 		printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
 		printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
         close(slave_fd);
-        return -1;
+        return ;
 	}
 
 	// 连接成功，那么遍历内存中的数据
@@ -310,18 +315,18 @@ void process_master(void *arg) {
 	// 去指向每一个数据
 //! 这里的迭代器遍历不是安全的，这里先只连接一个，如果是多个的话，应该用锁保护
 //! 并且这里遍历的时候相当于是读操作了对于
-	pthread_rwlock_wrlock(&global_m_btree->rwlock)
+	pthread_rwlock_wrlock(&global_m_btree->rwlock);
 	btree_iterator_t *iterator = create_iterator(global_m_btree);
 	char buf[64] = {0};
 	int used = 0;
 	// 按照协议格式构造请求send给slave
 	// 这里发送set请求
 	// [lenth]set key val[lenth]set key val
-	while (ite->current->state != ITER_STATE_END) {
+	while (iterator->current->state != ITER_STATE_END) {
 		bkey_t key_val = iterator_get(iterator);
 		
 		used = 0;
-		used += snprintf(buf + sizeof(int), sizeof(buf) - sizeof(int), "set %s %d", key_val.key, *(int*)key_val.data_ptr);
+		used += snprintf(buf + sizeof(int), sizeof(buf) - sizeof(int), "set %s %d", key_val.key, *(int*)key_val.data_ptrs);
 		if (used >= sizeof(buf) - 4) {
 			perror("发送的消息过长,exit退出\n");
 			printf("!!!!!!!!!!!!!!!!!!!!!\n");
@@ -336,7 +341,7 @@ void process_master(void *arg) {
         iterator_find_next(iterator);
     }
 	// 记录和保存当前fd，用于后续的同步操作,这里先用最简单的数组保存,后续可以用哈希存储
-	int idx = atomic_load_explicit(&slave_cnt, 1, memory_order_relaxed);
+	int idx = atomic_load_explicit(&slave_cnt, memory_order_relaxed);
 	if (idx > 9) {
 		perror("slave 数量过多, exit退出\n");
 		exit(-14);
@@ -347,7 +352,7 @@ void process_master(void *arg) {
 	pthread_rwlock_unlock(&global_m_btree->rwlock);
 }
 // 
-// 主机运行该函数
+// 主机运行该函威
 void replicate(void *arg) {
 	// 接收从机请求，以及接收从机的ip和端口
 	// 再向从机的任务端口发送连接
@@ -391,9 +396,7 @@ int NtyCo_Entry(unsigned short p, unsigned short p2) {
 	*port = p;
 	unsigned short *m_port = (unsigned short*)malloc(sizeof(unsigned short));
 	*m_port = p2;
-	
-	unsigned short port = p;
-	unsigned short m_port = p2;
+
 	nty_coroutine *co = NULL;
 	nty_coroutine_create(&co, server, port);
 	nty_coroutine *ms_co = NULL;

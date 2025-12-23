@@ -20,11 +20,10 @@ int kv_response(struct conn *c) {
 
 // typedef kv_type_s kv_type_t; 
 
-#define t 1024
+#define t 1024 * 8
 
 extern _Atomic uint16_t fd_lock[20];
 extern allocator_out_t global_allocator;
-// btree_handle global_bplus_tree;
 persister_handle global_persister;
 extern btree_t *global_m_btree;
 

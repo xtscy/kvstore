@@ -1,15 +1,16 @@
 #include "../m_btree.h"
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdio.h>
 btree_t *global_tree;
 int cnt;
 extern fixed_size_pool_t *int_global_fixed_pool;
 
 int main() {
-    global_tree = btree_create(512);
+    global_tree = btree_create(1024);
     int_global_fixed_pool = fixed_pool_create(sizeof(int), 1000111);
     // 添加数据
-    for (int i = 1; i <= 500; i++) {
+    for (int i = 1; i <= 100000; i++) {
         void *dptr = fixed_pool_alloc(int_global_fixed_pool);
         *((int*)dptr) = i;
         bkey_t temp_key = {0};

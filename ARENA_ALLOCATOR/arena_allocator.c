@@ -172,30 +172,30 @@ block_alloc_t stage_alloc_pessimistic(size_t size, stage_allocator_t *allocator)
             new_used = current_used + size;
             if (new_used > stage->capacity)
             {
-                uint8_t temp_fail = atomic_fetch_add_explicit(&stage->fail_cnt, 1, memory_order_relaxed);
-                size_t temp_ref = atomic_load_explicit(&stage->reference_count, memory_order_relaxed);
-                if (temp_fail >= 10 && temp_ref == 0)
-                {
-                    printf("alloc 连续失败，进行reset后alloc\n");
-                    // alloc 失败连续10次 ref为0
-                    // 并且这里不会连续调用该stage所以fail不会一直增大，且ref不为0
-                    // reset即把偏移量置为0，且把当前失败次数置为0
-                    if (size <= stage->capacity){
-                        atomic_store_explicit(&stage->fail_cnt, 0, memory_order_relaxed);
-                        current_used = 0;
-                        new_used = size;
-                    } else {
-                        atomic_store_explicit(&stage->used, 0, memory_order_relaxed);
-                        atomic_store_explicit(&stage->fail_cnt, 0, memory_order_relaxed);
-                        return (block_alloc_t){
-                            .ptr = NULL,
-                            .size = 0,
-                            .allocator = NULL
-                        };
+                // uint8_t temp_fail = atomic_fetch_add_explicit(&stage->fail_cnt, 1, memory_order_relaxed);
+                // size_t temp_ref = atomic_load_explicit(&stage->reference_count, memory_order_relaxed);
+                // if (temp_fail >= 10 && temp_ref == 0)
+                // {
+                //     printf("alloc 连续失败，进行reset后alloc\n");
+                //     // alloc 失败连续10次 ref为0
+                //     // 并且这里不会连续调用该stage所以fail不会一直增大，且ref不为0
+                //     // reset即把偏移量置为0，且把当前失败次数置为0
+                //     if (size <= stage->capacity){
+                //         atomic_store_explicit(&stage->fail_cnt, 0, memory_order_relaxed);
+                //         current_used = 0;
+                //         new_used = size;
+                //     } else {
+                //         atomic_store_explicit(&stage->used, 0, memory_order_relaxed);
+                //         atomic_store_explicit(&stage->fail_cnt, 0, memory_order_relaxed);
+                //         return (block_alloc_t){
+                //             .ptr = NULL,
+                //             .size = 0,
+                //             .allocator = NULL
+                //         };
 
-                    }
-                    // 这里重置后，可以继续使用该stage进行分配
-                } else {
+                //     }
+                //     // 这里重置后，可以继续使用该stage进行分配
+                // } else {
                     atomic_fetch_add_explicit(&stage->lock.seq_lock, 1, memory_order_release);
                     // printf("当前stage容量不足,无法申请\n");
                     printf("stage_alloc_pessimistic exit");
@@ -204,7 +204,7 @@ block_alloc_t stage_alloc_pessimistic(size_t size, stage_allocator_t *allocator)
                         .ptr = NULL,
                         .size = 0,
                         .allocator = NULL};
-                }
+                // }
             }
 
             // 进行写操作,更改new_used

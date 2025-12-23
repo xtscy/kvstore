@@ -15,24 +15,25 @@ thread_pool_t g_thread_pool = {
 uint8_t Thread_Pool_Init(int num_workers)
 {
     int sign = 0;
-    if ((g_thread_pool.global_workers = (global_worker_t*)malloc(sizeof(global_worker_t) * GLOBAL_TASK_THREADS)) != NULL) {
-        atomic_init(&g_thread_pool.global_pos, 0); 
-        g_thread_pool.global_worker_nums = GLOBAL_TASK_THREADS;        
-        pthread_cond_init(&g_thread_pool.global_cond, NULL);
-        atomic_init(&g_thread_pool.sleep_num, 0);
-        for (int i = 0; i < GLOBAL_TASK_THREADS; i++) {
-            pthread_mutex_init(&g_thread_pool.global_workers[i].g_mutex, NULL);
-        }
-    } else {
-        free(g_thread_pool.global_workers);
-        return THREAD_POOL_ERROR;
-    }
+    // if ((g_thread_pool.global_workers = (global_worker_t*)malloc(sizeof(global_worker_t) * GLOBAL_TASK_THREADS)) != NULL) {
+    //     atomic_init(&g_thread_pool.global_pos, 0); 
+    //     g_thread_pool.global_worker_nums = GLOBAL_TASK_THREADS;        
+    //     pthread_cond_init(&g_thread_pool.global_cond, NULL);
+    //     atomic_init(&g_thread_pool.sleep_num, 0);
+    //     for (int i = 0; i < GLOBAL_TASK_THREADS; i++) {
+    //         pthread_mutex_init(&g_thread_pool.global_workers[i].g_mutex, NULL);
+    //     }
+    // } else {
+    //     free(g_thread_pool.global_workers);
+    //     return THREAD_POOL_ERROR;
+    // }
 
     if ((g_thread_pool.workers = (worker_t *)malloc(sizeof(worker_t) * num_workers)) != NULL)
     {
         if (g_thread_pool.workers == NULL)
         {
             printf("ThreadPool Init Failed!\n");
+            abort();
             exit(-1);
         }
         
@@ -164,24 +165,24 @@ uint8_t Thread_Pool_Run()
     pthread_t pid = 0;
     pthread_attr_t attr;
 
-    pthread_attr_t global_attr;
-    if (pthread_attr_init(&global_attr) == 0) {
-        if (pthread_attr_setdetachstate(&global_attr, PTHREAD_CREATE_DETACHED) == 0) {
-            for (int i = 0; i < 1; i++) {
-                printf("GLOBAL_TASK_THREADS : %d\n", GLOBAL_TASK_THREADS);
-                g_thread_pool.global_workers[i].global_id = 1000 + i;
-                // pthread_mutex_init(&g_thread_pool.global_workers[i].g_mutex, NULL);
-                int ret = pthread_create(&pid, &global_attr, Global_Worker_Func, &g_thread_pool.global_workers[i]);
-                g_thread_pool.global_workers[i].thread_id = pid;
-                if (ret != 0) {
-                    printf("global thread create failed\n");
-                    exit(-1);
-                }
-            }
-        }
-    } else {
-        return THREAD_POOL_ERROR;
-    }
+    // pthread_attr_t global_attr;
+    // if (pthread_attr_init(&global_attr) == 0) {
+    //     if (pthread_attr_setdetachstate(&global_attr, PTHREAD_CREATE_DETACHED) == 0) {
+    //         for (int i = 0; i < 1; i++) {
+    //             printf("GLOBAL_TASK_THREADS : %d\n", GLOBAL_TASK_THREADS);
+    //             g_thread_pool.global_workers[i].global_id = 1000 + i;
+    //             // pthread_mutex_init(&g_thread_pool.global_workers[i].g_mutex, NULL);
+    //             int ret = pthread_create(&pid, &global_attr, Global_Worker_Func, &g_thread_pool.global_workers[i]);
+    //             g_thread_pool.global_workers[i].thread_id = pid;
+    //             if (ret != 0) {
+    //                 printf("global thread create failed\n");
+    //                 exit(-1);
+    //             }
+    //         }
+    //     }
+    // } else {
+    //     return THREAD_POOL_ERROR;
+    // }
     
     if (pthread_attr_init(&attr) == 0)
     {
@@ -197,6 +198,7 @@ uint8_t Thread_Pool_Run()
                 if (ret != 0)
                 {
                     printf("Thread Create Failed\n");
+                    abort();
                     exit(-1);
                 }
                 g_thread_pool.workers[i].thread_id = pid;
@@ -230,6 +232,7 @@ void *Worker_Func(void *arg)
     if (block == NULL)
     {
         printf("malloc failed, exit -1");
+        abort();
         exit(-1);
     }
 
@@ -240,14 +243,22 @@ void *Worker_Func(void *arg)
         //* 这里线程的队列中的类型是task，所以是一个task一个task的拿然后处理当前的task
         int ret = -1;
         if(sem_wait(&p_worker->sem) == 0) {
-            LK_RB_Read_Block(&p_worker->queue, block, 1U);
+            if (LK_RB_Read_Block(&p_worker->queue, block, 1U) == RING_BUFFER_ERROR) {
+                printf("LK_RB_Read_Block failed\n");
+                int sem_cur_val = 0;
+                sem_getvalue(&p_worker->sem, &sem_cur_val);
+                printf("sem val%d\n", sem_cur_val);
+                abort();
+            }
 
             if ((ret = Process_Data_Task(block)) == 0) {
                 printf("当前block处理完成\n");
             } else if (ret == -2) {
                 printf("当前token没有对应的order, 该次中的所有token全部丢弃\n");
+                abort();
             } else {
                 printf("其他错误\n");
+                abort();
             }
             // allocator_deref(block->allocator);
             // fixed_pool_free(global_fixed_pool, )
@@ -261,5 +272,5 @@ void *Worker_Func(void *arg)
 //* 返回worker线程数组的下标
 uint32_t Thread_Scheduler(void)
 {
-    return (atomic_fetch_add(&g_thread_pool.next_worker_id, 1) % g_thread_pool.worker_count);
+    return (atomic_fetch_add_explicit(&g_thread_pool.next_worker_id, 1, memory_order_relaxed) % g_thread_pool.worker_count);
 }

@@ -39,13 +39,16 @@ ssize_t ssend(int fd, const void *buf, size_t len, int flags) {
 		// nty_poll_inner(&fds, 1, 1);
         printf("send_f behind\n");
 		int ret = send_f(fd, ((char*)buf)+sent, len-sent, flags);
-        printf("send_f behind\n");
+        printf("send_f after\n");
+        if (ret == -1) {
+            printf("send失败: %s\n", strerror(errno));
+        }
         printf("ret:%d\n", ret);
 
 		//printf("send --> len : %d\n", ret);
 		if (ret < 0) {			
             printf("当前send_f出错,ret=%d,continue\n", ret);
-            return -1;
+            abort();
             // continue;
             // exit(-11);
 			// break;
@@ -53,13 +56,16 @@ ssize_t ssend(int fd, const void *buf, size_t len, int flags) {
             printf("connect shutdown by peer\n");
             return ret;
         }
-		sent += ret;
+        if (ret >= 0) {
+            sent += ret;
+        }
 	} 
     if (sent == len) return sent;
     else {
         printf("当前信息未发送完,eixt(-11)\n");
         sleep(1);
         printf("当前信息未发送完,eixt(-11)\n");
+        abort();
         exit(-11);
     }
 	// if (ret <= 0 && sent == 0) return ret;
@@ -87,25 +93,26 @@ int Process_Data_Task(block_alloc_t *block) {
     //* 所以这里需要自己实现字符串分割,分割成一个一个token
     
     printf("block:->%s\n", block->ptr);
-    char *token[64] = {0};
+    char *token[2048] = {0};
     int num_token = 0;
     int prev = 0, pos = 0;
     int is_reading = -1;//-1 未读，1读
     int cur_token = 0;
     int del_cnt = 0;
+    int size = block->size;
     //* 这里由于token个数有限，可以先解析一部分，执行任务然后再来分割，然后再来执行。循环，直到当前payload_len全部执行完毕。退出整个任务执行的循环
-    while(block->size > 0) {    
+    while(size > 0) {
         
         is_reading = -1, del_cnt = 0, prev = 0;
         
 
-        for (int i = pos; i < block->size; i++) {
+        for (int i = pos; i < size; i++) {
 
             // if (num_token >= 64) {
             //     return -2;
             // }
             
-            if (block->ptr[pos] == ' ' || block->ptr[pos] == '\0') {
+            if (((char*)block->ptr)[pos] == ' ' || ((char*)block->ptr)[pos] == '\0') {
                 if (is_reading == -1) {
                     //未读
                     pos++;
@@ -151,11 +158,8 @@ int Process_Data_Task(block_alloc_t *block) {
             }
             int flag = 0;
             switch (ret) {
-                // 更改架构使用内存池，所以这里的KV_函数都需要更改
                 case 0 : {
                     //* SET
-                    // 这里使用disk_bPlusTree
-                    // printf("")
                     flag = KV_SET(token[cur_token + 1], token[cur_token + 2]);
 
                     //* 通过返回flag的不同，从而发送不同的消息
@@ -184,7 +188,8 @@ int Process_Data_Task(block_alloc_t *block) {
                                     printf("!!!!!!!!!!!!!!!!!!!!!\n");
                                     exit(-13);
                                 }
-                                memcpy(innbuf, strlen(innbuf + 4), sizeof(int));
+                                uint32_t tmp_len = strlen(innbuf + 4);
+                                memcpy(innbuf, &tmp_len, sizeof(uint32_t));
                                 
                                 for (int i = 0; i < cnt; i++) {
                                     ssend(slave_array[i], innbuf, strlen(innbuf), 0);
@@ -290,7 +295,7 @@ int Process_Data_Task(block_alloc_t *block) {
         }
 
         num_token = 0;
-        block->size -= del_cnt;
+        size -= del_cnt;
     }
     printf("int Process_Data_Task(block_alloc_t *block) 正常返回\n");
     return 0;//* 0成功

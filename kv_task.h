@@ -11,7 +11,7 @@
 #include "./MemoryBTreeLock/m_btree.h"
 
 #define READ_CACHE_SIZE 1024*16
-#define RING_BUF_SIZE 1000
+#define RING_BUF_SIZE 1024
 #define KV_ARRAY_SIZE 1000
 
 

@@ -1,14 +1,15 @@
 #include "persister.hpp"
-#include "../MemoryBTreeLock/m_btree.h"
-#include "../BPlusTree/bpt.hpp"
+extern "C" {
+    #include "../MemoryBTreeLock/m_btree.h"
+}
+
 namespace Persister{
 
-persister::persister(const& char* path)
-    : persister::_full_path(path), _btree(_full_path.c_str(), false)
-    , proc_num_(0), lock_sign_(false), _incremental_log(-1), sequence_(0)
+persister::persister(const char* path)
+    : _full_path(path), _btree(_full_path.c_str(), false)
+    , proc_num_(0), lock_sign_(false), sequence_(0)
     , file_suffix_(0), _incremental_log(0), wc_sign_(true), w_num_(0)
 {
-
 
     // 如果全量文件存在
     // 那么读取该文件
@@ -20,14 +21,14 @@ persister::persister(const& char* path)
     // 那么肯定是当前全量文件
     // 不会有其他操作
     // 所以在迭代器内部直接用单线程逻辑就行
-    bpt::bplus_tree::iterator ite = _btree.begin();
-    while (ite != _btree.end()) {
+    bpt::bplus_tree::iterator ite = _btree.ite_begin();
+    while (ite != _btree.ite_end()) {
         auto [key, val] = *ite;
         void *dptr = fixed_pool_alloc(int_global_fixed_pool);
         *((int*)dptr) = val;
         bkey_t temp_key = {0};
         temp_key.data_ptrs = dptr;
-        sprintf(temp.key, "%s", key.c_str());
+        sprintf(temp_key.key, "%s", key.data());
         btree_insert(global_m_btree, temp_key, int_global_fixed_pool);
         ++ite;
 
@@ -48,14 +49,14 @@ persister::persister(const& char* path)
     std::string prev_filename("");
     while (true) {
         i++;
-        filename = prex_filename + std::to_string(i);
+        filename = prex_filename + std::to_string(i) + ".log";
         // 这里需要先打开文件，同时构建文件名
         // 如果当前文件打开失败，说明没有增量日志，日志已经处理完毕
         fp = fopen(filename.c_str(), "rb");
 
         if (fp == nullptr) break;
 
-        fd = std::fileno(fp);
+        fd = ::fileno(fp);
         struct stat st;
         if (::fstat(fd, &st) < 0) {
             ::fclose(fp);
@@ -132,20 +133,20 @@ persister::persister(const& char* path)
                     *((int*)dptr) = std::stoi(val);
                     bkey_t temp_key = {0};
                     temp_key.data_ptrs = dptr;
-                    sprintf(temp.key, "%s", key.c_str());
+                    sprintf(temp_key.key, "%s", key.data());
                     btree_insert(global_m_btree, temp_key, int_global_fixed_pool);
 
                     
                 } else if (c == '2') {
                     // get
                     // 2 key1\r\n
-                    char prev = '';
+                    char prev = '\0';
                     while (current < size) {
                         if (addr[current] == '\n' && prev == '\r') {
                             current++;
                             break;
                         }
-                        prev = add[current++];
+                        prev = addr[current++];
                     }
                 } else if (c == '3') {
                     //remove
@@ -154,7 +155,7 @@ persister::persister(const& char* path)
             }   
             if (munmap(addr, size) == -1) {
                 perror("munmap");
-                return 1;
+                throw std::runtime_error("munmap failed");
             }
         }
         prev_filename = filename;
@@ -167,7 +168,7 @@ persister::persister(const& char* path)
     if (prev_filename == "") {
         // 创建新文件
         create_sign = 1;
-        create_file = "incremental_1";
+        create_file = "incremental_1.log";
         file_suffix_.store(2, std::memory_order_release);
     } else {
         // 创建新的增量文件,并指向
@@ -178,14 +179,14 @@ persister::persister(const& char* path)
             throw std::runtime_error("文件open出错");
         }
         struct stat st;
-        if (std::fstat(temp, &st) < 0) {
+        if (::fstat(temp, &st) < 0) {
             ::close(temp);
             throw std::runtime_error("无法获取文件大小");
         }
         size_t size = static_cast<size_t>(st.st_size);
-        if (size >= limit - 256) {
+        if (size >= this->limit - 256) {
             create_sign = 1;
-            create_file = std::string("incremental_") + std::to_string(i);
+            create_file = std::string("incremental_") + std::to_string(i) + ".log";
             file_suffix_.store(i + 1, std::memory_order_relaxed);
             close(temp);
         } else {
@@ -216,7 +217,7 @@ persister::persister(const& char* path)
 /*
 num 为当前写入的操作的数字标识
 */
-void Persister::persister::persiste(std::string const& key, int val, int num = 1) noexcept {
+void persister::persiste(std::string const& key, int val, int num) noexcept {
 
     // 使用2个原子变量 ，1个读写锁
     // 大小大于分割值，分割文件
@@ -259,16 +260,17 @@ void Persister::persister::persiste(std::string const& key, int val, int num = 1
     auto [ptr, ec] = std::to_chars(buffer.data(), buffer.data() + buffer.size(), value);
    */
   //这里字符串拼接可以优化，目前先这样写
+  std::string data;
   if (num == 1) {
-    std::string data = std::to_string(num) + " " + key + " " + std::to_string(val) + "\r\n";
+    data = std::to_string(num) + " " + key + " " + std::to_string(val) + "\r\n";
   } else if (num == 2) {
-    std::string data = std::to_string(num) + " " + key + "\r\n";
+    data = std::to_string(num) + " " + key + "\r\n";
   }
     //? 还是使用while,而非if，尽可能的保证不向到达阈值的文件进行写入
     int loop = 0;
     
     // 这里每个分支都使用了break，那么当前的loop是无用的，这里先这样，后续看要不要去掉某个break
-    while (incre_split_size_.load(std::memory_order_acquire) >= this.limit) {
+    while (incre_split_size_.load(std::memory_order_acquire) >= this->limit) {
         if (loop == 10) break;//*防止一直阻塞
         // seq
         //线程停留
@@ -281,16 +283,16 @@ void Persister::persister::persiste(std::string const& key, int val, int num = 1
                 if (seq_i == seq_o) {
                     int lock_temp = 0;
                     proc_num_.fetch_add(1, std::memory_order_relaxed);
-                    if (lock_sign.load(std::memory_order_relaxed) == true) {
+                    if (lock_sign_.load(std::memory_order_relaxed) == true) {
                         lock_temp = 1;
-                        rwlock_.lock_shared()
+                        rwlock_.lock_shared();
                     }
                     
                     // 比较成功，则去创建
                     // 这里再检查一次大小，如果大小大于等于limit那么进行真正的创建
-                    if (incre_split_size.load(std::memory_order_acquire) >= this.limit) {
+                    if (incre_split_size_.load(std::memory_order_acquire) >= this->limit) {
                         uint64_t suffix = file_suffix_.fetch_add(1, std::memory_order_relaxed);
-                        std::string filename = "incremental_" + std::to_string(suffix);
+                        std::string filename = "incremental_" + std::to_string(suffix) + ".log";
                         int new_fd = open(filename.c_str(), O_RDWR | O_APPEND | O_CREAT, 0644);
                         if (new_fd == -1) {
                             throw std::runtime_error("文件open出错");
@@ -508,6 +510,8 @@ void Persister::persister::persiste(std::string const& key, int val, int num = 1
 
 void persister::combine_flush_log() {
 
+    FILE *fp = NULL;
+    int fd = -1;
     while (true) {
         std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
         auto target_time = now + std::chrono::seconds(60);
@@ -519,13 +523,13 @@ void persister::combine_flush_log() {
         rwlock_.lock();
         while (true) {
             if (proc_num_.load(std::memory_order_relaxed) == 0) {
-                inf suffix = file_suffix_.load(std::memory_order_relaxed);
+                int suffix = file_suffix_.load(std::memory_order_relaxed);
                 ::fsync(_incremental_log.load(std::memory_order_relaxed));
                 for (int i = 1; i < suffix; i++) {
                     // read all incremental log to full log
                     // call bpt insert
                     // read according to the format
-                    std::string filename = prex_filename + std::to_string(i);
+                    std::string filename = prex_filename + std::to_string(i) + + ".log";
                     fp = fopen(filename.c_str(), "rb");
 
                     if (fp == nullptr) {
@@ -533,7 +537,7 @@ void persister::combine_flush_log() {
                     }
                     
                     
-                    fd = std::fileno(fp);
+                    fd = ::fileno(fp);
                     struct stat st;
                     if (::fstat(fd, &st) < 0) {
                         ::fclose(fp);
@@ -610,13 +614,13 @@ void persister::combine_flush_log() {
                             } else if (c == '2') {
                                 // get
                                 // 2 key1\r\n
-                                char prev = '';
+                                char prev = '\0';
                                 while (current < size) {
                                     if (addr[current] == '\n' && prev == '\r') {
                                         current++;
                                         break;
                                     }
-                                    prev = add[current++];
+                                    prev = addr[current++];
                                 }
                             } else if (c == '3') {
                                 //remove
@@ -635,7 +639,7 @@ void persister::combine_flush_log() {
                 // 删除所有的增量文件，重置信息
                 // 重新创建文件, 更新_log指向，更新file_suffix_
                 // 更新split_size_大小
-                int log = open("incremental_1", O_RDWR | O_APPEND | O_CREAT, 0644);
+                int log = open("incremental_1.log", O_RDWR | O_APPEND | O_CREAT, 0644);
                 _incremental_log.store(log, std::memory_order_relaxed);
                 file_suffix_.store(2, std::memory_order_relaxed);
                 incre_split_size_.store(0, std::memory_order_relaxed);
@@ -653,7 +657,7 @@ void persister::start_combine_flush_thread() noexcept {
     // start and detach
     std::thread combine_t([this] {
         this->combine_flush_log();
-    })
+    });
     combine_t.detach();
     std::cout << "combine thread start->>" << std::endl;
 }

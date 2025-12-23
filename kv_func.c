@@ -1,11 +1,9 @@
 #include "kv_task.h"
 #include <errno.h>
 #include "BPlusTree/bpt_c.h"
+#include "Persister/persister_c.h"
 
 
-
-// extern kv_type_t* g_kv_array;
-extern btree_handle global_bplus_tree;
 extern persister_handle global_persister;
 
 int is_integer(const char *str) {
@@ -66,22 +64,23 @@ int kv_free(void *p) {
 }
 
 
-
+extern volatile bool stage;
 //*返回0找到有效key，没找到返回-1
 // 这里使用内存池，那么就没有数组访问，而是使用alloc申请块，然后放入块中
 // 这里GET某个key，也是去到内存池中查找
 int KV_GET(char *key, int* val) {
     printf("3\n");
     printf("GEt key:-> %s\n", key);
-    int ret = btree_search_c(global_bplus_tree, key, val);
-    if (ret == 0) {// 从机和主机都可以get,但是只有主机需要持久化
+    // int ret = btree_search_c(global_bplus_tree, key, val);
+    bkey_t bkey = {0};
+    search_result_t ret = btree_search(global_m_btree, &bkey);
+    if (ret.found == true) {// 从机和主机都可以get,但是只有主机需要持久化
+        *val = *(int*)bkey.data_ptrs;
         if (stage == true) {
             persister_get(global_persister, key);
         }
         return 0;
-    }
-    // 
-    else return -1;
+    } else return -1;
     // printf("current key:->%s\n", (char*)c->kv_array[0].key);
     // for (int i = 0; i < KV_ARRAY_SIZE; i++) {
     //     if (g_kv_array[i].key != NULL){
@@ -151,7 +150,7 @@ int KV_GET(char *key, int* val) {
 
 // 
 
-extern volatile bool stage;
+
 
 int KV_SET(char *key, char *val) {
 
@@ -174,7 +173,7 @@ int KV_SET(char *key, char *val) {
         *((int*)dptr) = value;
         bkey_t temp_key = {0};
         temp_key.data_ptrs = dptr;
-        sprintf(temp.key, "%s", key);
+        sprintf(temp_key.key, "%s", key);
         // 写入内存
         // 写入增量文件
         // 1 key1 value1\r\n1 key2 value2\r\n

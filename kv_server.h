@@ -24,7 +24,7 @@
 
 // typedef int(*msg_handler)(char*, int, char*)
 // msg_handler kv_handler;
-extern int NtyCo_Entry(unsigned short);
+extern int NtyCo_Entry(unsigned short, unsigned short);
 extern int Reactor_Entry(unsigned short);
 typedef int (*RCALLBACK)(int fd);
 struct conn {

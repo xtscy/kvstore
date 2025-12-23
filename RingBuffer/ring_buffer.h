@@ -27,7 +27,7 @@ typedef struct
     uint32_t Length ;           //已储存的数据量
     uint8_t *array_addr ;       //缓冲区储存数组基地址
     uint32_t max_Length ;       //缓冲区最大可储存数据量
-}ring_buffer;
+} ring_buffer;
 
 uint8_t RB_Init(ring_buffer *rb_handle, uint32_t buffer_size);               //初始化基础环形缓冲区
 uint8_t RB_Delete(ring_buffer *rb_handle, uint32_t Length);                                        //从头指针开始删除指定长度的数据

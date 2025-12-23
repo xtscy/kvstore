@@ -7,7 +7,7 @@
 
 #include <stdbool.h>
 #include <pthread.h>
-#include "../memory_pool/memory_pool.h"
+// #include "../memory_pool/memory_pool.h"
 #define STRING_SIZE  21
 
 
@@ -76,6 +76,8 @@ typedef struct btree_iterator_s {
     
 } btree_iterator_t;
 
+typedef struct fixed_size_pool fixed_size_pool_t;
+
 extern btree_iterator_t* create_iterator(btree_t*);
 extern btree_iterator_t* iterator_find_next(btree_iterator_t *iterator);
 extern bkey_t iterator_get(btree_iterator_t*); 
@@ -84,10 +86,15 @@ extern btree_t* btree_create(int);
 // tree, key
 extern bool btree_insert(btree_t*, bkey_t, fixed_size_pool_t*);
 extern bool btree_contains(btree_t*, bkey_t);
-extern search_result_t btree_search(btree_t *, bkey_t);
+extern search_result_t btree_search(btree_t *, bkey_t*);
 extern bool btree_remove(btree_t*, bkey_t, fixed_size_pool_t*);
 extern void btree_inorder_traversal(btree_t*);
 extern void btree_inorder_traversal_test_array(btree_t*, int*);
+extern void* fixed_pool_alloc(fixed_size_pool_t*);
+extern void fixed_pool_free(fixed_size_pool_t*, void*);
+extern fixed_size_pool_t* fixed_pool_create(size_t block_size, size_t block_count);
+extern void fixed_pool_destroy(fixed_size_pool_t*);
+extern void fixed_pool_stats(fixed_size_pool_t*);
 extern fixed_size_pool_t *int_global_fixed_pool;
 extern btree_t *global_m_btree;
 #ifdef __cplusplus

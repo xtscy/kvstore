@@ -63,8 +63,13 @@ btree_iterator_t* create_iterator(btree_t *tree) {
 
     ite->current = cur;
     cur->ite_index = 0;
-    cur->state = ITER_STATE_AT_KEY;
-
+    if (cur->num_keys == 0) {
+        cur->state = ITER_STATE_END;
+    } else if (cur->num_keys > 0) cur->state = ITER_STATE_AT_KEY;
+      else  {
+        printf("num_keys state failed\n");
+        exit(-20);
+      }
     return ite;
 }
 
@@ -217,8 +222,11 @@ btree_t* btree_create(int t) {
 
 // 调用者保证叶子节点未满
 static bool insert_into_leaf(btree_node_t* node, bkey_t key, fixed_size_pool_t *pool) {
-    assert(node->is_leaf);
+    // assert(node->is_leaf);
 
+    //* 当值重复时，不是叶子节点但是也进行覆盖
+    //* 当值不重复，必然会去到叶子节点，然后进行移动键值然后插入
+    
     int insert_index = node->num_keys - 1;
     while (insert_index >= 0 && strcmp(key.key, node->keys[insert_index].key) < 0) {
 
@@ -398,7 +406,7 @@ bool btree_insert(btree_t* tree, bkey_t key, fixed_size_pool_t *pool) {
         // printf("current->is_leaf:%d\n", current->is_leaf);
         // printf("----------------1.5---------------\n");
     }
-    // 叶子节点，且数据不可能最多
+    // 插入叶子节点，且数据不可能最多。覆盖可能非叶子
     insert_into_leaf(current, key, pool);
     pthread_rwlock_unlock(&tree->rwlock);
     return true;
@@ -440,7 +448,7 @@ bool btree_contains(btree_t* tree, bkey_t key) {
 
 }
 
-search_result_t btree_search(btree_t* tree, bkey_t key) {
+search_result_t btree_search(btree_t* tree, bkey_t* key) {
 
     // 和上面逻辑大致相同，找到键后返回result_t
     search_result_t ret = {
@@ -457,8 +465,9 @@ search_result_t btree_search(btree_t* tree, bkey_t key) {
     while (current) {
 
         int index = 0;
-        while (index < current->num_keys && /*current->keys[index] < key*/ strcmp(key.key, current->keys[index].key) > 0) index++;
-        if (index < current->num_keys && strcmp(key.key, current->keys[index].key) == 0) {
+        while (index < current->num_keys && /*current->keys[index] < key*/ strcmp(key->key, current->keys[index].key) > 0) index++;
+        if (index < current->num_keys && strcmp(key->key, current->keys[index].key) == 0) {
+            *(int*)key->data_ptrs = *(int*)current->keys[index].data_ptrs;
             pthread_rwlock_unlock(&tree->rwlock);
             ret.found = true;
             ret.index = index;

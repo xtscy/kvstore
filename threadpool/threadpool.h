@@ -53,7 +53,7 @@ typedef struct thread_pool_s {
     //* 并且在一段时间后，自动清理不需要的全局队列。这样可以有效防止某一时刻或某一小段时间接收到巨量的请求，让服务器阻塞
     lock_free_ring_buffer global_queue[MAX_GLOBAL_QUEUE_NUM];
     worker_t *workers;             // Worker数组
-    int worker_count;              // Worker数量
+    volatile int worker_count;              // Worker数量
     uint32_t (*scheduler_strategy)(void);
     atomic_uint next_worker_id;    // 用于轮询策略
     

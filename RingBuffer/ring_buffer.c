@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "ring_buffer.h"
+#include <stdlib.h>
 #include <stdio.h>
 /**
  * \brief 初始化新缓冲区
@@ -23,6 +24,7 @@ uint8_t RB_Init(ring_buffer *rb_handle, uint32_t buffer_size)
     rb_handle->Length = 0 ; //复位已存储数据长度
     // rb_handle->array_addr = buffer_addr ; //缓冲区储存数组基地址
     rb_handle->array_addr = (uint8_t*)malloc(buffer_size);
+    memset(rb_handle->array_addr, 0, buffer_size);
     rb_handle->max_Length = buffer_size ; //缓冲区最大可储存数据量
     return RING_BUFFER_SUCCESS ; //缓冲区初始化成功
 }
@@ -153,10 +155,13 @@ uint8_t RB_Write_String(ring_buffer *rb_handle, uint8_t *input_addr, uint32_t wr
  *      \arg RING_BUFFER_SUCCESS: 读取成功
  *      \arg RING_BUFFER_ERROR: 读取失败
 */
+uint32_t global_output_addr_prev;
 uint8_t RB_Read_String(ring_buffer *rb_handle, uint8_t *output_addr, uint32_t read_Length)
 {
-    if(read_Length > rb_handle->Length)
+    if(read_Length > rb_handle->Length) {
+        abort();
         return RING_BUFFER_ERROR ;
+    }
     else
     {
         uint32_t Read_size_a, Read_size_b ;
@@ -165,6 +170,7 @@ uint8_t RB_Read_String(ring_buffer *rb_handle, uint8_t *output_addr, uint32_t re
             printf("RBSTRING_if\n");
             Read_size_a = rb_handle->max_Length - rb_handle->head ;
             Read_size_b = read_Length - Read_size_a ;
+            global_output_addr_prev = rb_handle->head;
             memcpy(output_addr, rb_handle->array_addr + rb_handle->head, Read_size_a);
             memcpy(output_addr + Read_size_a, rb_handle->array_addr, Read_size_b);
             rb_handle->Length -= read_Length ;//记录剩余数据量
@@ -178,10 +184,12 @@ uint8_t RB_Read_String(ring_buffer *rb_handle, uint8_t *output_addr, uint32_t re
             memcpy(output_addr, rb_handle->array_addr + rb_handle->head, Read_size_a);
             // printf("output_addr:%u\b", output_addr);
             rb_handle->Length -= read_Length ;//记录剩余数据量
+            global_output_addr_prev = rb_handle->head;
             rb_handle->head += Read_size_a ;//重新定位头指针位置
             if(rb_handle->head == rb_handle->max_Length)
-                rb_handle->head = 0 ;//如果读取数据后头指针刚好写到数组尾部，则回到开头，防止越位
+            rb_handle->head = 0 ;//如果读取数据后头指针刚好写到数组尾部，则回到开头，防止越位
         }
+
         return RING_BUFFER_SUCCESS ;
     }
 }

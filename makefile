@@ -12,8 +12,9 @@ C_SRCS = hook_tcpserver.c kv_task.c kv_func.c kv_protocal.c kvstore.c kv_reactor
 		./lock_free_ring_buf/lock_free_ring_block_buf.c ./ARENA_ALLOCATOR/stage_allocator.c \
 		./ARENA_ALLOCATOR/arena_allocator.c \
 		./memory_pool/memory_pool.c \
-		./Sequence_lock/Sequence_lock.c
-CPP_SRCS = ./BPlusTree/bpt_c.cc ./BPlusTree/bpt.cc
+		./Sequence_lock/Sequence_lock.c \
+		./MemoryBTreeLock/m_btree.c
+CPP_SRCS = ./BPlusTree/bpt_c.cc ./BPlusTree/bpt.cc ./Persister/persister_c.cc ./Persister/persister.cc
 C_OBJS = $(C_SRCS:.c=.o)
 CPP_OBJS = $(CPP_SRCS:.cc=.o)
 TARGET = kvstore
@@ -21,13 +22,17 @@ TARGET = kvstore
 .PHONY:clean
 all:$(TARGET)
 %.o:%.c
-	$(CC) $(CFLAGS) -c $< -o $@ -g
+	$(CC) $(CFLAGS) -c $< -o $@ -g 
 
 %.o:%.cc
-	$(CXX) $(CXXFLAGS) -c $< -o $@ -g
+	$(CXX) $(CXXFLAGS) -c $< -o $@ -g 
 
 $(TARGET):$(C_OBJS) $(CPP_OBJS)
 	$(CXX) $^ -o $@ -g -I ./NtyCo-master/core  -L./NtyCo-master/ -lntyco 2>&1 | tee build.log
 
 clean:
-	rm -f $(C_OBJS) $(CPP_OBJS) $(TARGET)
+	rm -f $(C_OBJS) $(CPP_OBJS) $(TARGET) 
+clean_log:
+	rm -f incremental_*.log
+clean_full_log:
+	rm -f fullLog.db

@@ -7,6 +7,7 @@
 相当于是记录当前操作的上一个操作是否需要被阻塞,这里上一个操作执行完,那么其他操作必然执行完吗,也不是所以这里情况很复杂,或者说就是架构的问题
 这里更好的架构是一个客户端对应一个任务线程,这样呢就是线性的任务处理,避免插入和删除任务不同步的弊端.那么这里能就先使用这个架构,并且只使用insert插入数据先实现一些基本功能
 */
+#include <sys/mman.h>    // C 风格头文件
 #include <fcntl.h>      // open(), O_APPEND等
 #include <unistd.h>     // write(), close()
 #include <sys/stat.h>   // mode_t, 权限常量
@@ -32,7 +33,7 @@ private:
 
 
     
-    constexpr int limit = 1024 * 5;
+    constexpr static int limit = 1024 * 512;
     // 当前增量文件大小记录
     std::atomic<long> incre_split_size_;
     // 创建文件的原子阻塞
@@ -44,12 +45,6 @@ private:
     std::atomic<int> _incremental_log;
 // 对于非创建文件的线程只需要下面的原子变量，这里可以用分页标志，优化性能    
     
-
-    
-    std::atomic<bool> wc_sign_;
-    std::atomic<int> w_num_;
-    bpt::bplus_tree _btree;
-    
 // 当前处理任务计数
     std::atomic<int> proc_num_;
 // 读写锁的原子标志 
@@ -58,6 +53,12 @@ private:
     std::shared_mutex rwlock_;
     
     const std::string _full_path;
+    
+    std::atomic<bool> wc_sign_;
+    std::atomic<int> w_num_;
+    bpt::bplus_tree _btree;
+    
+
 
     // 这里在程序开始时就去初始化该全量和增量文件
     // 如果不存在那么，赋值为-1
@@ -65,10 +66,10 @@ private:
 public:
     
     // void start_thread() noexcept;
-    void persister(const& char* path);
+    persister(const char* path);
     void start_combine_flush_thread() noexcept;
     // 接收key val , num
-    bool persiste(std::string const& key, int val, int num = 1);
+    void persiste(std::string const& key, int val, int num = 1) noexcept;
 
     
 };
