@@ -43,6 +43,29 @@ int main(int argc, char* argv[]) {
         std::cout << "./get_test ip port begin_num1 end_num2" << std::endl;
         return 0;
     }
+
+        std::thread cmd_thread([] {
+        std::string input;
+        std::string_view cmd("quit");
+        std::getline(std::cin, input);
+
+        auto result = input <=> cmd;
+        if (result == std::strong_ordering::less) {
+
+            std::cout << "cmd not exist\n请重新输入" << std::endl;
+            
+        } else if (result == std::strong_ordering::equal) {
+
+            std::cout << "quit!" << std::endl;
+            exit(0);
+            
+        } else if (result == std::strong_ordering::greater) {
+            std::cout << "cmd not exist\n请重新输入" << std::endl;
+        }
+        
+        
+    });
+    
     
     int nfd = socket(AF_INET, SOCK_STREAM, 0);
     sockaddr_in addr = {0};
@@ -63,14 +86,16 @@ int main(int argc, char* argv[]) {
         int cnt = 0;
         while (true) {
             cnt++;
+
             std::cout << "recv cnt:" << cnt << std::endl;
             recv_len = recv(nfd, recv_buf, sizeof(recv_buf) - 1, 0);
             // std::cout << "recv_len: " << recv_len << std::endl;
             if (recv_len > 0) {
                 recv_buf[recv_len] = '\0';
-                std::cout << recv_buf << " "; 
+                std::cout << "recv->" << recv_buf << " " << std::endl; 
             } else {
                 std::cout << "recv 0 or <0" << std::endl;
+                abort();
                 // throw std::runtime_error("recv 0 or <0");
                 return ;
             }
@@ -82,14 +107,16 @@ int main(int argc, char* argv[]) {
     uint32_t len = 0;
     for (int i = begin_num1; i <= end_num2; i++) {
         int rsp = snprintf(buf + 4, sizeof(buf) - 4, "get tkey%d", i);
-        printf("rsp:%d\n", rsp);
+        std::cout << "send-> " << buf + 4 << std::endl;
+        // printf("rsp:%d\n", rsp);
         if (rsp >= sizeof(buf) - 4) {
             throw std::runtime_error("int rsp = snprintf(buf + 4, sizeof(buf) - 4, \"set tkey%d %d\", i, i);");
         }
-        buf[rsp + 4] = '\0';
-        len = strlen(buf + 4);
+
+        // buf[rsp + 4] = '\0';
+        len = htonl(strlen(buf + 4));
         memcpy(buf, &len, sizeof(uint32_t));
-        ssend(nfd, buf, len + 4, 0);
+        ssend(nfd, buf, strlen(buf + 4) + 4, 0);
     }
     std::cout << "get_send_thread run end" << std::endl;
     recv_thread.join();

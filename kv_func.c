@@ -73,6 +73,7 @@ int KV_GET(char *key, int* val) {
     printf("GEt key:-> %s\n", key);
     // int ret = btree_search_c(global_bplus_tree, key, val);
     bkey_t bkey = {0};
+    memcpy(bkey.key, key, strlen(key));
     search_result_t ret = btree_search(global_m_btree, &bkey);
     if (ret.found == true) {// 从机和主机都可以get,但是只有主机需要持久化
         *val = *(int*)bkey.data_ptrs;

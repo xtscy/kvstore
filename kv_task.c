@@ -42,6 +42,7 @@ ssize_t ssend(int fd, const void *buf, size_t len, int flags) {
         printf("send_f after\n");
         if (ret == -1) {
             printf("send失败: %s\n", strerror(errno));
+            abort();
         }
         printf("ret:%d\n", ret);
 
@@ -164,7 +165,7 @@ int Process_Data_Task(block_alloc_t *block) {
 
                     //* 通过返回flag的不同，从而发送不同的消息
                     //* 这里调用hook过的recv，发送消息并且可能让出
-                    char buf[24] = {0};
+                    char buf[36] = {0};
                     if (flag == 0) {
                         // 发送OK
                         // buf = "OK";
@@ -200,6 +201,7 @@ int Process_Data_Task(block_alloc_t *block) {
                     } else if (flag == -1) {
                         sprintf(buf, "%s", "FALSE");
                         // buf = "FALSE";
+                        abort();
                     }
                     uint16_t val = 0;
                     ssize_t sign = 0;
@@ -264,7 +266,7 @@ int Process_Data_Task(block_alloc_t *block) {
                             sign = ssend(block->conn_fd, buf, strlen(buf), 0);
                             if (sign == -1 || sign == 0) {
                                 atomic_fetch_add_explicit(&fd_lock[block->conn_fd], 1, memory_order_release);
-                                return -3;
+                                abort();
                             }
                             // atomic_store_explicit(&fd_lock[block->conn_fd], false, memory_order_release);
                             atomic_fetch_add_explicit(&fd_lock[block->conn_fd], 1, memory_order_release);

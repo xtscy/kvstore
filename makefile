@@ -30,6 +30,8 @@ all:$(TARGET)
 $(TARGET):$(C_OBJS) $(CPP_OBJS)
 	$(CXX) $^ -o $@ -g -I ./NtyCo-master/core  -L./NtyCo-master/ -lntyco 2>&1 | tee build.log
 
+clean_all : clean clean_log clean_full_log
+
 clean:
 	rm -f $(C_OBJS) $(CPP_OBJS) $(TARGET) 
 clean_log:

@@ -458,6 +458,7 @@ search_result_t btree_search(btree_t* tree, bkey_t* key) {
     };
 
     if (!tree || !tree->root) {
+        abort();
         return ret;
     }
     pthread_rwlock_rdlock(&tree->rwlock);
@@ -467,7 +468,7 @@ search_result_t btree_search(btree_t* tree, bkey_t* key) {
         int index = 0;
         while (index < current->num_keys && /*current->keys[index] < key*/ strcmp(key->key, current->keys[index].key) > 0) index++;
         if (index < current->num_keys && strcmp(key->key, current->keys[index].key) == 0) {
-            *(int*)key->data_ptrs = *(int*)current->keys[index].data_ptrs;
+            key->data_ptrs = current->keys[index].data_ptrs;
             pthread_rwlock_unlock(&tree->rwlock);
             ret.found = true;
             ret.index = index;
