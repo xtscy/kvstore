@@ -103,6 +103,7 @@ int Process_Protocal(connection_t *c)
                 //  task_t *task = (task_t*)malloc(sizeof(task_t));
 
                 block_alloc_t block = allocator_alloc(&global_allocator, c->current_header + 1U);
+
                 // 拿到block,然后写入线程的任务队列中
                 if (block.ptr != NULL) {
                     bzero(block.ptr, block.size);// 多一个/0用于c语言字符串的结束标志
@@ -110,6 +111,8 @@ int Process_Protocal(connection_t *c)
                         printf("int Process_Protocal RB_Read_String(&c->read_rb, (void*)&c->current_header, 4U) == RING_BUFFER_ERROR)\n");
                         abort();
                     }
+                    printf("ptr->%s,size->%u\n", block.ptr, block.size);
+                    printf("c->current_header:%u\n", c->current_header);
                     block.conn_fd = c->fd;
                     // block.size = c->current_header;
                     // char *temp_payload = malloc(c->current_header);
@@ -130,6 +133,7 @@ int Process_Protocal(connection_t *c)
                 } else {
                     //* malloc 失败都直接退出
                     printf("block alloc failed from allocator\n");
+                    abort();
                     exit(-1);
                 }
                 //* block开辟成功
@@ -146,7 +150,7 @@ int Process_Protocal(connection_t *c)
                     //* 依次遍历线程
                     for (int i = 0; i < g_thread_pool.worker_count; i++) {
                     // g_thread_pool.workers[worker_idx]
-                        int worker_idx = g_thread_pool.scheduler_strategy();
+                        uint32_t worker_idx = g_thread_pool.scheduler_strategy();
                         if (LK_RB_Write_Block(&g_thread_pool.workers[worker_idx].queue, &block, 1) == RING_BUFFER_SUCCESS) {
                             if (sem_post(&g_thread_pool.workers[worker_idx].sem) != 0) {
                                 printf("sem_post 失败 %s\n", strerror(errno));

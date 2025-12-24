@@ -93,7 +93,7 @@ int Process_Data_Task(block_alloc_t *block) {
     //* 这里不能使用strtok函数，为了保证线程安全，可重入函数
     //* 所以这里需要自己实现字符串分割,分割成一个一个token
     
-    printf("block:->%s\n", block->ptr);
+    printf("96 block:->%s\n", block->ptr);
     char *token[2048] = {0};
     int num_token = 0;
     int prev = 0, pos = 0;

@@ -251,6 +251,8 @@ void *Worker_Func(void *arg)
                 abort();
             }
 
+            printf("worke->block->%s,worker->block->size%lu\n", block->ptr, block->size);
+            
             if ((ret = Process_Data_Task(block)) == 0) {
                 printf("当前block处理完成\n");
             } else if (ret == -2) {

@@ -14,6 +14,7 @@ uint8_t LK_RB_Init(lock_free_ring_buffer *rb_handle, uint32_t buffer_size)
     ///* 与普通的max_Length - 1区分开 
     atomic_store(&rb_handle->state, 0);
     uint32_t head = 0;
+    rb_handle->max_Length = buffer_size;
     uint32_t tail = rb_handle->max_Length;
     uint64_t state = MAKE_STATE(head, tail);
     atomic_exchange_explicit(&rb_handle->state, state, memory_order_relaxed);
@@ -23,7 +24,6 @@ uint8_t LK_RB_Init(lock_free_ring_buffer *rb_handle, uint32_t buffer_size)
         printf("LK_RB malloc failed\n");
         return RING_BUFFER_ERROR;
     }
-    rb_handle->max_Length = buffer_size;
     return RING_BUFFER_SUCCESS ; //缓冲区初始化成功
 }
 
@@ -76,9 +76,13 @@ uint8_t LK_RB_Write_Block(lock_free_ring_buffer *rb_handle, block_alloc_t *input
     uint64_t old_state = 0, new_state = 0;
     uint32_t old_head = 0;
     uint32_t old_tail = 0, new_tail = 0;
-    old_state = atomic_load(&rb_handle->state);
+    old_state = atomic_load_explicit(&rb_handle->state, memory_order_acquire);
     
     do {
+        // ABA问题，这里只用两个变量很难解决，考虑多1位标志位来区分
+        // 标志区分在head==tail的情况时，当前位置究竟是有数据还是没数据
+        // 这里好像可以如果当前读完了，直接重置状态，把tail赋值为max_Length
+        // head = 0
         old_head = GET_HEAD(old_state);
         old_tail = GET_TAIL(old_state);
         uint32_t count = 0, free_size = 0;
@@ -130,10 +134,13 @@ uint8_t LK_RB_Write_Block(lock_free_ring_buffer *rb_handle, block_alloc_t *input
         }
         
         new_state = MAKE_STATE(old_head, new_tail);
-    } while(!atomic_compare_exchange_weak(&rb_handle->state, &old_state, new_state));
+    } while(!atomic_compare_exchange_weak_explicit(&rb_handle->state, &old_state, new_state, memory_order_relaxed, memory_order_relaxed));
     // 这里还没实现批处理的内存拷贝，目前只能拷贝1个
     memcpy(&rb_handle->block_array[old_tail], input_addr, write_Length * sizeof(block_alloc_t));
-    
+    printf("block_array->%s, block_array->%lu\n", rb_handle->block_array[old_tail].ptr,
+        rb_handle->block_array[old_tail].size);
+    uint64_t temp = 0;
+    temp = atomic_load_explicit(&rb_handle->state, memory_order_seq_cst);
     return RING_BUFFER_SUCCESS;
 
 }
@@ -142,13 +149,13 @@ uint8_t LK_RB_Write_Block(lock_free_ring_buffer *rb_handle, block_alloc_t *input
 uint8_t LK_RB_Read_Block(lock_free_ring_buffer *rb_handle, block_alloc_t *output_addr, uint32_t read_Length) {
 
     uint64_t old_state = 0, new_state = 0;
-    old_state = atomic_load(&rb_handle->state);
+    old_state = atomic_load_explicit(&rb_handle->state, memory_order_acquire);
     uint32_t old_head = 0, new_head = 0;
-    uint32_t old_tail = 0;
+    uint32_t old_tail = 0, new_tail = 0;
 
     do {
         old_head = GET_HEAD(old_state);
-        old_tail = GET_TAIL(old_state);
+        new_tail = old_tail = GET_TAIL(old_state);
         
         uint32_t num = 0;
         //   // 相等的情况有可能是全满，也有可能没有值，
@@ -180,10 +187,26 @@ uint8_t LK_RB_Read_Block(lock_free_ring_buffer *rb_handle, block_alloc_t *output
         } else {
             new_head = read_Length - rb_handle->max_Length + old_head;
         }
-        memcpy(output_addr, &rb_handle->block_array[old_head], read_Length * sizeof(block_alloc_t));
-        new_state = MAKE_STATE(new_head, old_tail);
-    } while (!atomic_compare_exchange_weak(&rb_handle->state, &old_state, new_state));
+        // 说明当前只有一个数据，读完重置状态
+        if (old_tail == old_head) {
+            new_head = 0;
+            new_tail = rb_handle->max_Length;
+        }
 
+        
+        memcpy(output_addr, &rb_handle->block_array[old_head], read_Length * sizeof(block_alloc_t));
+        printf("read_block_array_block_array->%s,read_block_array_block_array->%lu\n"
+                , rb_handle->block_array[old_head].ptr,rb_handle->block_array[old_head].size);
+        new_state = MAKE_STATE(new_head, new_tail);
+        
+    } while (!atomic_compare_exchange_weak_explicit(&rb_handle->state, &old_state, new_state, memory_order_release, memory_order_relaxed));
+    if (output_addr->ptr == NULL){
+        abort();
+    }
+
+    // if(rb_handle->block_array[old_head].ptr == NULL){
+    //     abort();
+    // }
     return RING_BUFFER_SUCCESS ;
     
 }

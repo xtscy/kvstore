@@ -83,7 +83,9 @@ int main(int argc, char* argv[]) {
                 throw std::runtime_error("send set tkey");
             }
             // std::cout << "strlen(buf) " << "strlen(buf) " <<strlen(buf) << std::endl;
+            std::cout << "ssend behing" << std::endl;
             ssend(nfd, buf, strlen(buf + 4) + 4, 0);
+            std::cout << "buf:" << buf + 4 << std::endl;
             // usleep(100000);
         }
         std::cout << "send_thread run end" << std::endl;
