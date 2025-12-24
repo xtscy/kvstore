@@ -61,6 +61,15 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
+	printf("开始发送模式\n");
+    char temp_buf[16] = "1\r\n";
+	ssize_t r_sd = ssend(nfd, temp_buf, strlen(temp_buf), 0);
+	if (r_sd != strlen(temp_buf)) {
+		perror("send发送失败, exit");
+		abort();
+		exit(-14);
+	}
+    
     int begin = atoi(argv[3]);
     int end = atoi(argv[4]);
     

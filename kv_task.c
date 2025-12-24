@@ -6,6 +6,7 @@
 #include <sys/types.h>     // 数据类型定义（通常隐式包含）
 #include "./NtyCo-master/core/nty_coroutine.h"
 #include <stdatomic.h>
+#include <arpa/inet.h>
 
 char* order[] = {"set", "get", "del", "incr", "decr"};
 
@@ -165,65 +166,73 @@ int Process_Data_Task(block_alloc_t *block) {
 
                     //* 通过返回flag的不同，从而发送不同的消息
                     //* 这里调用hook过的recv，发送消息并且可能让出
-                    char buf[36] = {0};
-                    if (flag == 0) {
-                        // 发送OK
-                        // buf = "OK";
-                        sprintf(buf, "ok set %s %s", token[cur_token + 1], token[cur_token + 2]);
-                        printf("set %s %s\n", token[cur_token + 1], token[cur_token + 2]);
-                        printf("send:%s\n", buf);
-                        
-                        
-                        if (stage == true) {
-                            int cnt = atomic_load_explicit(&slave_cnt, memory_order_acquire);
-                            if (cnt > 0) {
-                                // 这里可能多个线程都去send,这里使用了内核的socket锁
-                                // 实际上会串行
-                                char innbuf[64] = {0};
-                                int used = 0;
-                                used += snprintf(buf + sizeof(int), sizeof(innbuf) - sizeof(int), "set %s %s", token[cur_token + 1], token[cur_token + 2]);
-                                if (used >= sizeof(innbuf) - 4) {
-                                    perror("发送的消息过长,exit退出\n");
-                                    printf("!!!!!!!!!!!!!!!!!!!!!\n");
-                                    printf("!!!!!!!!!!!!!!!!!!!!!\n");
-                                    printf("!!!!!!!!!!!!!!!!!!!!!\n");
-                                    exit(-13);
-                                }
-                                uint32_t tmp_len = strlen(innbuf + 4);
-                                memcpy(innbuf, &tmp_len, sizeof(uint32_t));
-                                
-                                for (int i = 0; i < cnt; i++) {
-                                    ssend(slave_array[i], innbuf, strlen(innbuf), 0);
-                                }
-                            }
-                        }
+                    if (block->conn_fd != -10) {
 
-                    } else if (flag == -1) {
-                        sprintf(buf, "%s", "FALSE");
-                        // buf = "FALSE";
-                        abort();
-                    }
-                    uint16_t val = 0;
-                    ssize_t sign = 0;
-                    do {
-                        val = atomic_load_explicit(&fd_lock[block->conn_fd], memory_order_acquire);
-                        
-                        if (val & 1) {
-                            continue;
-                        }
-                        if (atomic_compare_exchange_weak_explicit(&fd_lock[block->conn_fd], &val, val + 1, memory_order_acquire, memory_order_relaxed)) {
-                            // ssend(block->conn_fd, s_buf, strlen(s_buf), 0);
-                            sign = ssend(block->conn_fd, buf, strlen(buf), 0);
-                            if (sign == -1 || sign == 0) {
-                                atomic_fetch_add_explicit(&fd_lock[block->conn_fd], 1, memory_order_release);
-                                return -3;
+                    
+                        char buf[36] = {0};
+                        if (flag == 0) {
+                            // 发送OK
+                            // buf = "OK";
+                            sprintf(buf, "ok set %s %s", token[cur_token + 1], token[cur_token + 2]);
+                            printf("set %s %s\n", token[cur_token + 1], token[cur_token + 2]);
+                            printf("send:%s\n", buf);
+                            
+                            
+                            if (stage == true) {
+                                int cnt = atomic_load_explicit(&slave_cnt, memory_order_acquire);
+                                if (cnt > 0) {
+                                    printf("开始转发\n");
+                                    // 这里可能多个线程都去send,这里使用了内核的socket锁
+                                    // 实际上会串行
+                                    char innbuf[64] = {0};
+                                    int used = 0;
+                                    used += snprintf(innbuf + sizeof(int), sizeof(innbuf) - sizeof(int), "set %s %s", token[cur_token + 1], token[cur_token + 2]);
+                                    if (used >= sizeof(innbuf) - sizeof(int)) {
+                                        perror("发送的消息过长,exit退出\n");
+                                        printf("!!!!!!!!!!!!!!!!!!!!!\n");
+                                        printf("!!!!!!!!!!!!!!!!!!!!!\n");
+                                        printf("!!!!!!!!!!!!!!!!!!!!!\n");
+                                        abort();
+                                        exit(-13);
+                                    }
+                                    uint32_t tmp_len = htonl(strlen(innbuf + 4));
+                                    memcpy(innbuf, &tmp_len, sizeof(tmp_len));
+                                    
+                                    for (int i = 0; i < cnt; i++) {
+                                        ssend(slave_array[i], innbuf, strlen(innbuf + 4) + 4, 0);
+                                        printf("转发%s\n", innbuf + 4);
+                                    }
+                                    printf("转发完成\n");
+                                }
                             }
-                            // atomic_store_explicit(&fd_lock[block->conn_fd], false, memory_order_release);
-                            atomic_fetch_add_explicit(&fd_lock[block->conn_fd], 1, memory_order_release);
-                            break;
+
+                        } else if (flag == -1) {
+                            sprintf(buf, "%s", "FALSE");
+                            // buf = "FALSE";
+                            abort();
                         }
-                                
-                    } while(true);
+                        uint16_t val = 0;
+                        ssize_t sign = 0;
+                        do {
+                            val = atomic_load_explicit(&fd_lock[block->conn_fd], memory_order_acquire);
+                            
+                            if (val & 1) {
+                                continue;
+                            }
+                            if (atomic_compare_exchange_weak_explicit(&fd_lock[block->conn_fd], &val, val + 1, memory_order_acquire, memory_order_relaxed)) {
+                                // ssend(block->conn_fd, s_buf, strlen(s_buf), 0);
+                                sign = ssend(block->conn_fd, buf, strlen(buf), 0);
+                                if (sign == -1 || sign == 0) {
+                                    atomic_fetch_add_explicit(&fd_lock[block->conn_fd], 1, memory_order_release);
+                                    return -3;
+                                }
+                                // atomic_store_explicit(&fd_lock[block->conn_fd], false, memory_order_release);
+                                atomic_fetch_add_explicit(&fd_lock[block->conn_fd], 1, memory_order_release);
+                                break;
+                            }
+                                    
+                        } while(true);
+                    }
                     cur_token += 3;
                     break;
                 }
@@ -233,47 +242,49 @@ int Process_Data_Task(block_alloc_t *block) {
                     int pos = 0;
 
                     flag = KV_GET(token[cur_token + 1], &pos);
-                    char buf[16] = {0};
-                    if (flag == 0) {
-                        //* 存在，先把值转换成字符串
-                        //* 通过类型判断，如果是字符串直接发送，如果是数值类型则转换
-                        // if (g_kv_array[pos].type == TYPE_INTEGER) {
-                            // char s_buf[16] = {0};//解引用,就是把拿到指针指向的对象,int a = 10 int *pt = &a , *pt = a = 10,
-                            sprintf(buf, "%d", pos);
-                            
-                            printf("send:%s\n", buf);
-                        // } else if (g_kv_array[pos].type == TYPE_STRING) {
-                            // ssend(t->conn_fd, g_kv_array[pos].value, strlen(g_kv_array[pos].value), 0);
-                        // }
-                        
-                    } else if (flag == -1) {
-                        // buf = "FALSE";
-                        sprintf(buf, "%s", "FALSE");
-                        // ssend(block->conn_fd, buf, strlen(buf), 0);
-                        //* send 不存在
-                    }
-                    ssize_t sign = 0;
-                    uint16_t val = 0;
-                    do {
-                        val = atomic_load_explicit(&fd_lock[block->conn_fd], memory_order_acquire);
-                        
-                        if (val & 1) {
-                            printf("val & 1 continue");
-                            continue;
-                        }
-                        if (atomic_compare_exchange_weak_explicit(&fd_lock[block->conn_fd], &val, val + 1, memory_order_acquire, memory_order_relaxed)) {
-                            // ssend(block->conn_fd, s_buf, strlen(s_buf), 0);
-                            sign = ssend(block->conn_fd, buf, strlen(buf), 0);
-                            if (sign == -1 || sign == 0) {
-                                atomic_fetch_add_explicit(&fd_lock[block->conn_fd], 1, memory_order_release);
-                                abort();
-                            }
-                            // atomic_store_explicit(&fd_lock[block->conn_fd], false, memory_order_release);
-                            atomic_fetch_add_explicit(&fd_lock[block->conn_fd], 1, memory_order_release);
-                            break;
-                        }
+                    if (block->conn_fd != -10) {
+                        char buf[16] = {0};
+                        if (flag == 0) {
+                            //* 存在，先把值转换成字符串
+                            //* 通过类型判断，如果是字符串直接发送，如果是数值类型则转换
+                            // if (g_kv_array[pos].type == TYPE_INTEGER) {
+                                // char s_buf[16] = {0};//解引用,就是把拿到指针指向的对象,int a = 10 int *pt = &a , *pt = a = 10,
+                                sprintf(buf, "%d", pos);
                                 
-                    } while(true);
+                                printf("send:%s\n", buf);
+                            // } else if (g_kv_array[pos].type == TYPE_STRING) {
+                                // ssend(t->conn_fd, g_kv_array[pos].value, strlen(g_kv_array[pos].value), 0);
+                            // }
+                            
+                        } else if (flag == -1) {
+                            // buf = "FALSE";
+                            sprintf(buf, "%s", "FALSE");
+                            // ssend(block->conn_fd, buf, strlen(buf), 0);
+                            //* send 不存在
+                        }
+                        ssize_t sign = 0;
+                        uint16_t val = 0;
+                        do {
+                            val = atomic_load_explicit(&fd_lock[block->conn_fd], memory_order_acquire);
+                            
+                            if (val & 1) {
+                                printf("val & 1 continue");
+                                continue;
+                            }
+                            if (atomic_compare_exchange_weak_explicit(&fd_lock[block->conn_fd], &val, val + 1, memory_order_acquire, memory_order_relaxed)) {
+                                // ssend(block->conn_fd, s_buf, strlen(s_buf), 0);
+                                sign = ssend(block->conn_fd, buf, strlen(buf), 0);
+                                if (sign == -1 || sign == 0) {
+                                    atomic_fetch_add_explicit(&fd_lock[block->conn_fd], 1, memory_order_release);
+                                    abort();
+                                }
+                                // atomic_store_explicit(&fd_lock[block->conn_fd], false, memory_order_release);
+                                atomic_fetch_add_explicit(&fd_lock[block->conn_fd], 1, memory_order_release);
+                                break;
+                            }
+                                    
+                        } while(true);
+                    }
                     cur_token += 2;
                     break;
                 }

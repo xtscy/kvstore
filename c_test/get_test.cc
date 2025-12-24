@@ -78,6 +78,16 @@ int main(int argc, char* argv[]) {
         close(nfd);
         return -1;
     }
+
+    printf("开始发送模式\n");
+    char temp_buf[16] = "1\r\n";
+	ssize_t r_sd = ssend(nfd, temp_buf, strlen(temp_buf), 0);
+	if (r_sd != strlen(temp_buf)) {
+		perror("send发送失败, exit");
+		abort();
+		exit(-14);
+	}
+    
     int begin_num1 = atoi(argv[3]);
     int end_num2 = atoi(argv[4]);
     std::thread recv_thread([&nfd] {

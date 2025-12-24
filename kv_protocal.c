@@ -81,6 +81,7 @@ int Process_Protocal(connection_t *c)
                 uint32_t pre_head = c->read_rb.head;
                 if (RB_Read_String(&c->read_rb, &c->current_header, 4U) == RING_BUFFER_ERROR) {
                     printf("int Process_Protocal RB_Read_String(&c->read_rb, (void*)&c->current_header, 4U) == RING_BUFFER_ERROR)\n");
+                    abort();
                     exit(-13);
                 }
                 c->current_header = ntohl(c->current_header);
