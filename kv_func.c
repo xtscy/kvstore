@@ -151,8 +151,63 @@ int KV_GET(char *key, int* val) {
 
 // 
 
+int KV_SORT(char *cnt, char **target) {
 
+    int num = atoi(cnt);
+    if (num <= 0) {
+        *target = (char*)malloc(16);
+        return -1;
+    }
 
+    pthread_rwlock_wrlock(&global_m_btree->rwlock);
+	btree_iterator_t *iterator = create_iterator(global_m_btree);
+	// char buf[64] = {0};
+	// int used = 0;
+    int current_size = 32;
+    *target = (char*)calloc(current_size, 1);
+    if (*target == NULL) {
+        printf("target calloc NULL\n");
+        abort();
+    }
+    int cur_pos = 0;
+    int total = 0;
+    int old_num = num;
+	while (iterator->current->state != ITER_STATE_END && num > 0) {
+        
+		bkey_t key_val = iterator_get(iterator);
+		printf("获取内存的b树的键值,key:%s,val:%d\n", key_val.key, *(int*)key_val.data_ptrs);
+        total += snprintf(NULL, 0, "%d ", *(int*)key_val.data_ptrs);
+        if (total < current_size) {
+            cur_pos += snprintf(*target + cur_pos, INT16_MAX, "%d ", *(int*)key_val.data_ptrs);
+        } else {
+            printf("total:%d",total);
+            int temp_val = current_size;
+            while (temp_val <= total) {
+                temp_val *= 2;
+            }
+            char* temp = malloc(temp_val);
+            memset(temp, 0, current_size);
+            current_size = temp_val;
+            if (temp == NULL) {
+                printf("开辟失败\n");
+                abort();
+            }
+            memcpy(temp, *target, cur_pos);
+            free(*target);
+            *target = temp;
+            cur_pos += snprintf(*target + cur_pos, INT16_MAX, "%d ", *(int*)key_val.data_ptrs);
+        }
+        iterator_find_next(iterator);
+        num--;
+    }
+    pthread_rwlock_unlock(&global_m_btree->rwlock);
+    if (old_num == num) {
+        return -2;
+    } else {
+        return 0;
+    }
+}
+ 
 int KV_SET(char *key, char *val) {
 
 

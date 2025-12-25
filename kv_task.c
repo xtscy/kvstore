@@ -8,7 +8,7 @@
 #include <stdatomic.h>
 #include <arpa/inet.h>
 
-char* order[] = {"set", "get", "del", "incr", "decr"};
+char* order[] = {"set", "get", "del", "incr", "decr", "sort"};
 
 extern int slave_array[10];
 extern atomic_int slave_cnt;
@@ -301,6 +301,49 @@ int Process_Data_Task(block_alloc_t *block) {
                 case 4 : {
                     //* DECR
                     flag = KV_DECR(token[cur_token + 1]);
+                    break;
+                }
+                case 5 : {
+                    //todo SORT
+
+                    char *temp_send_array = NULL;
+                    // true send, false false
+                    flag = KV_SORT(token[cur_token + 1], &temp_send_array);
+                    if (temp_send_array == NULL) {
+                        printf("KV_SORT temp_send_array NULL\n");
+                        abort();
+                    }
+                    if (block->conn_fd != -10) {
+                        if (flag == -1) {
+                            sprintf(temp_send_array, "%s", "FALSE");
+                        } else if (flag == -2) {
+                            sprintf(temp_send_array, "%s", "not exsist value");
+                        } else {
+                            ssize_t sign = 0;
+                            uint16_t val = 0;
+                            do {
+                                val = atomic_load_explicit(&fd_lock[block->conn_fd], memory_order_acquire);
+                                
+                                if (val & 1) {
+                                    printf("val & 1 continue");
+                                    continue;
+                                }
+                                if (atomic_compare_exchange_weak_explicit(&fd_lock[block->conn_fd], &val, val + 1, memory_order_acquire, memory_order_relaxed)) {
+                                    // ssend(block->conn_fd, s_buf, strlen(s_buf), 0);
+                                    sign = ssend(block->conn_fd, temp_send_array, strlen(temp_send_array), 0);
+                                    if (sign == -1 || sign == 0) {
+                                        atomic_fetch_add_explicit(&fd_lock[block->conn_fd], 1, memory_order_release);
+                                        abort();
+                                    }
+                                    // atomic_store_explicit(&fd_lock[block->conn_fd], false, memory_order_release);
+                                    atomic_fetch_add_explicit(&fd_lock[block->conn_fd], 1, memory_order_release);
+                                    break;
+                                }
+                                        
+                            } while(true);
+                        }
+                    }
+                    cur_token += 2;
                     break;
                 }
             }

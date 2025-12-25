@@ -80,6 +80,7 @@ extern int KV_GET(char *k, int* val);
 extern int KV_DEL(char *k);
 extern int KV_INCR(char *k);
 extern int KV_DECR(char *k);
+extern int KV_SORT(char*, char**);
 // extern int Process_Task(connection_t *c);
 extern int Process_Data_Task(block_alloc_t *block);
 extern int token_to_order(char *buf);

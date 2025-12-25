@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) {
     }
     // printf("1\n");
     global_fixed_pool = fixed_pool_create(sizeof(block_alloc_t), 100);
-    int_global_fixed_pool = fixed_pool_create(sizeof(int), 1000111);
+    int_global_fixed_pool = fixed_pool_create(sizeof(int), 100011);
     // printf("2\n");
     global_m_btree = btree_create(t);
     // global_bplus_tree = btree_create_c();
