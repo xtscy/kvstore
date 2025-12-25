@@ -1,0 +1,3 @@
+.PHONY:test.cc
+ttest: bpt.cc test.cc
+	g++ -std=c++11 $^ -o $@
