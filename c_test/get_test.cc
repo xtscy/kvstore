@@ -10,19 +10,19 @@ ssize_t ssend(int fd, const void *buf, size_t len, int flags) {
 
 	int sent = 0;
 	while (sent < len) {
-        printf("sent:%d, len:%lu\n", sent, len);
-        std::cout << "send behind" << std::endl;
+        // printf("sent:%d, len:%lu\n", sent, len);
+        // std::cout << "send behind" << std::endl;
 		int ret = send(fd, ((char*)buf)+sent, len-sent, flags);
-        std::cout << "send after" << std::endl;
+        // std::cout << "send after" << std::endl;
 		if (ret < 0) {			
-            printf("当前send_f出错,ret=%d,continue\n", ret);
+            // printf("当前send_f出错,ret=%d,continue\n", ret);
             return -1;
 		} else if (ret == 0) {
             printf("connect shutdown by peer\n");
             return ret;
         } else {
-            printf("ret=%d\n", ret);
-            printf("send->:%s|len->:%lu", (char*)buf, len);
+            // printf("ret=%d\n", ret);
+            // printf("send->:%s|len->:%lu", (char*)buf, len);
         }
 		sent += ret;
 	} 
@@ -117,7 +117,7 @@ int main(int argc, char* argv[]) {
     uint32_t len = 0;
     for (int i = begin_num1; i <= end_num2; i++) {
         int rsp = snprintf(buf + 4, sizeof(buf) - 4, "get tkey%d", i);
-        std::cout << "send-> " << buf + 4 << std::endl;
+        // std::cout << "send-> " << buf + 4 << std::endl;
         // printf("rsp:%d\n", rsp);
         if (rsp >= sizeof(buf) - 4) {
             throw std::runtime_error("int rsp = snprintf(buf + 4, sizeof(buf) - 4, \"set tkey%d %d\", i, i);");

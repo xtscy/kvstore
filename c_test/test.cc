@@ -92,9 +92,9 @@ int main(int argc, char* argv[]) {
                 throw std::runtime_error("send set tkey");
             }
             // std::cout << "strlen(buf) " << "strlen(buf) " <<strlen(buf) << std::endl;
-            std::cout << "ssend behing" << std::endl;
+            // std::cout << "ssend behing" << std::endl;
             ssend(nfd, buf, strlen(buf + 4) + 4, 0);
-            std::cout << "buf:" << buf + 4 << std::endl;
+            // std::cout << "buf:" << buf + 4 << std::endl;
             // usleep(100000);
         }
         std::cout << "send_thread run end" << std::endl;
@@ -108,7 +108,7 @@ int main(int argc, char* argv[]) {
             cnt++;
             std::cout << "recv cnt:" << cnt << std::endl;
             recv_len = recv(nfd, recv_buf, sizeof(recv_buf) - 1, 0);
-            std::cout << "recv_len: " << recv_len << std::endl;
+            // std::cout << "recv_len: " << recv_len << std::endl;
             if (recv_len > 0) {
                 recv_buf[recv_len] = '\0';
                 std::cout << recv_buf << " " << std::endl;; 
