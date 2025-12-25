@@ -343,6 +343,7 @@ int Process_Data_Task(block_alloc_t *block) {
                             } while(true);
                         }
                     }
+                    free(temp_send_array);
                     cur_token += 2;
                     break;
                 }
