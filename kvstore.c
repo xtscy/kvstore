@@ -43,7 +43,7 @@ int main(int argc, char* argv[]) {
     }
     // printf("1\n");
     global_fixed_pool = fixed_pool_create(sizeof(block_alloc_t), 100);
-    int_global_fixed_pool = fixed_pool_create(sizeof(int), 100011);
+    int_global_fixed_pool = fixed_pool_create(sizeof(int), 2000100);
     // printf("2\n");
     global_m_btree = btree_create(t);
     // global_bplus_tree = btree_create_c();
@@ -51,7 +51,7 @@ int main(int argc, char* argv[]) {
 
     
     // printf("3\n");
-    Thread_Pool_Init(1);
+    Thread_Pool_Init(5);
     Thread_Pool_Run();   
     // printf("4\n");
     if (argc < 4) {

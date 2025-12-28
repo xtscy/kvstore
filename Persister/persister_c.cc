@@ -10,6 +10,13 @@ struct persister_wrapper {
 persister_handle persister_create_c(const char *path) {
     persister_wrapper *wrapper = new persister_wrapper();
     wrapper->persister = new Persister::persister(path);
+    // 这里后续优化让另外一个进程来刷新文件，因为耗时非常大
+    // 刷新文件只涉及到已经存在的增量文件刷新到全量文件中,即给b+tree添加值
+    // 这里任务处理并不会用到b+树而是写到内存和增量文件中所以这里并不需要阻塞
+    // 所以可以不阻塞主线程的任务执行，然后刷新一定的数量比如10个不满足10个就刷新到当前增量文件的前1个
+    // 这样的话就能够更加高效的处理任务
+    // 目前先用quit来刷新，先这样写
+    wrapper->persister->start_cmd_quit_thread();
     // wrapper->persister->start_combine_flush_thread();
     return static_cast<persister_handle>(wrapper);    
 }

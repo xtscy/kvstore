@@ -13,7 +13,7 @@
 #define RING_BUFFER_SUCCESS     0x01
 #define RING_BUFFER_ERROR       0x00
 
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE 1024 * 16
 
 #define GET_HEAD(state) ((uint32_t)(state & 0xFFFFFFFF))
 #define GET_TAIL(state) ((uint32_t)(state >> 32))

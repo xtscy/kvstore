@@ -20,7 +20,7 @@
 #include <cstdint>
 #include <thread>
 #include <chrono>
-
+#include <compare> 
 namespace Persister {
 
 
@@ -33,7 +33,7 @@ private:
 
 
     
-    constexpr static int limit = 1024 * 512;
+    constexpr static int limit = 1024 * 64;
     // 当前增量文件大小记录
     std::atomic<long> incre_split_size_;
     // 创建文件的原子阻塞
@@ -63,6 +63,8 @@ private:
     // 这里在程序开始时就去初始化该全量和增量文件
     // 如果不存在那么，赋值为-1
     void combine_flush_log();
+    void quit_func();
+    void cmd_quit_thread();
 public:
     
     // void start_thread() noexcept;
@@ -70,8 +72,7 @@ public:
     void start_combine_flush_thread() noexcept;
     // 接收key val , num
     void persiste(std::string const& key, int val, int num = 1) noexcept;
-
-    
+    void start_cmd_quit_thread() noexcept;
 };
 
 }

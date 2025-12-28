@@ -249,7 +249,7 @@ int Process_Data_Task(block_alloc_t *block) {
                             //* 通过类型判断，如果是字符串直接发送，如果是数值类型则转换
                             // if (g_kv_array[pos].type == TYPE_INTEGER) {
                                 // char s_buf[16] = {0};//解引用,就是把拿到指针指向的对象,int a = 10 int *pt = &a , *pt = a = 10,
-                                sprintf(buf, "%d", pos);
+                                sprintf(buf, "%d\r\n", pos);
                                 
                                 printf("send:%s\n", buf);
                             // } else if (g_kv_array[pos].type == TYPE_STRING) {
@@ -258,7 +258,7 @@ int Process_Data_Task(block_alloc_t *block) {
                             
                         } else if (flag == -1) {
                             // buf = "FALSE";
-                            sprintf(buf, "%s", "FALSE");
+                            sprintf(buf, "%s", "FALSE\r\n");
                             // ssend(block->conn_fd, buf, strlen(buf), 0);
                             //* send 不存在
                         }
@@ -268,7 +268,7 @@ int Process_Data_Task(block_alloc_t *block) {
                             val = atomic_load_explicit(&fd_lock[block->conn_fd], memory_order_acquire);
                             
                             if (val & 1) {
-                                printf("val & 1 continue");
+                                // printf("val & 1 continue");
                                 continue;
                             }
                             if (atomic_compare_exchange_weak_explicit(&fd_lock[block->conn_fd], &val, val + 1, memory_order_acquire, memory_order_relaxed)) {

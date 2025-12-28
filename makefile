@@ -6,7 +6,7 @@
 CC = gcc
 CXX = g++
 CFLAGS = -std=c11 -D_GNU_SOURCE
-CXXFLAGS = -std=c++17
+CXXFLAGS = -std=c++20
 
 C_SRCS = hook_tcpserver.c kv_task.c kv_func.c kv_protocal.c kvstore.c kv_reactor.c ./RingBuffer/ring_buffer.c ./threadpool/threadpool.c \
 		./lock_free_ring_buf/lock_free_ring_block_buf.c ./ARENA_ALLOCATOR/stage_allocator.c \

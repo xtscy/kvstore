@@ -260,12 +260,12 @@ void persister::persiste(std::string const& key, int val, int num) noexcept {
     auto [ptr, ec] = std::to_chars(buffer.data(), buffer.data() + buffer.size(), value);
    */
   //这里字符串拼接可以优化，目前先这样写
-  std::string data;
-  if (num == 1) {
-    data = std::to_string(num) + " " + key + " " + std::to_string(val) + "\r\n";
-  } else if (num == 2) {
-    data = std::to_string(num) + " " + key + "\r\n";
-  }
+    std::string data;
+    if (num == 1) {
+     data = std::to_string(num) + " " + key + " " + std::to_string(val) + "\r\n";
+    } else if (num == 2) {
+        data = std::to_string(num) + " " + key + "\r\n";
+    }
     //? 还是使用while,而非if，尽可能的保证不向到达阈值的文件进行写入
     int loop = 0;
     
@@ -275,114 +275,122 @@ void persister::persiste(std::string const& key, int val, int num) noexcept {
         // seq
         //线程停留
         seq_o = sequence_.load(std::memory_order_relaxed);
-        if (create_bool_.compare_exchange_strong(create, true,
-            std::memory_order_acquire, std::memory_order_relaxed)) {
-                // seq 
-                seq_i = sequence_.load(std::memory_order_relaxed);
-                // 这里进来则序列号一定更改，在标志设置更新前去设置序列号
-                if (seq_i == seq_o) {
-                    int lock_temp = 0;
-                    proc_num_.fetch_add(1, std::memory_order_relaxed);
-                    if (lock_sign_.load(std::memory_order_relaxed) == true) {
-                        lock_temp = 1;
-                        rwlock_.lock_shared();
-                    }
-                    
-                    // 比较成功，则去创建
-                    // 这里再检查一次大小，如果大小大于等于limit那么进行真正的创建
-                    if (incre_split_size_.load(std::memory_order_acquire) >= this->limit) {
-                        uint64_t suffix = file_suffix_.fetch_add(1, std::memory_order_relaxed);
-                        std::string filename = "incremental_" + std::to_string(suffix) + ".log";
-                        int new_fd = open(filename.c_str(), O_RDWR | O_APPEND | O_CREAT, 0644);
-                        if (new_fd == -1) {
-                            throw std::runtime_error("文件open出错");
-                        }
-                        //* 成功创建，按照顺序来更新原子值
-                        //todo 这里涉及下面可能还有写入操作，当前的 incre_split_size_的更新
-                        //todo _incremental_log fd的更新
-                        //todo 以及最后的create_bool_的更新,还有当前fd的关闭
-                        //todo 考虑到下面的对于当前fd的写入操作
-                        //todo 如果这里先关闭，那么可能写入到错误的fd中
-                        //todo 所以关闭一定在fd的更新后面，即先记录当前的fd然后更新fd再去关闭
-                        //todo 那么这里的_size_该如何更新呢，在更新了fd后再去更新
-                        //todo 那么这样的话就可能下面的写入操作在_size_更新的前面
-                        //todo 然后向该fd前面写入的一些数据就会未记录,所以会少记录一些数据
-                        //todo 由于每次写入  的数据并不是非常大，如果每次写入的数据非常大
-                        //todo 那么在下面的写入操作需要再增加一些检测逻辑,这里数据小所以浮动范围可以接收
-                        //todo 那么就先修改fd，然后更新size最后关闭原fd
-                        //todo 这里呢下面写入操作还是可能失败因为原子加载和写入两个操作合在一起，并不是原子的
-                        //todo 下面写入的时候使用while直到写入成功
-
-                        wc_sign_.store(false, std::memory_order_relaxed);// 这里锁住其他写操作
-                        // 这里只有当w_num_为0时才会去更新当前的文件信息
-                        while (true) {
-                            if (w_num_.load(std::memory_order_relaxed) == 0) {
-                                int old = _incremental_log.exchange(new_fd, std::memory_order_relaxed);
-
-                                ::fsync(old);// 后续可以优化
-
-                                close(old);
-                                // create_bool_, incre_split_size_, wc_sign_
-                                // create_bool_控制还未CAS进入的线程和在下面while循环的线程
-                                // incre_split_size_控制最外层的还未进入while的线程
-                                // 外层while不进入则直接写入，如果wc_sign_没更新那么将会阻塞在
-                                // 同一个位置，这里为了降低线程阻塞在同一个区域
-                                // 那么在更新incre_split_size_前更新wc_sign_
-                                // 但是这样的话incre_split_size可能会少记录在下面while
-                                // 的线程写入的字节数，然后被incre_split_size_更新为0
-                                // 但是在上面原本要下去阻塞的线程这时阻塞到了下面的while
-                                // 不，这里是不同的堆栈所以更新了信息后，尽可能的在下面阻塞
-                                // 可是这里涉及到共同访问一个缓存行即wc_sign_
-                                // 那么其实可能并不是并发，这里每个线程内部都需要去更新这个
-                                // wc_sign_的值,这里缓存行被标明为失效然后都去获取
-                                // 那么其实会有更大的竞争，那么这里呢就先更新wc_sign_
-                                // 然后更新incre_split_size_
-                                wc_sign_.store(true, std::memory_order_relaxed);//释放下面阻塞线程
-                                sequence_.fetch_add(1, std::memory_order_relaxed);// 更新序列号，让进入的线程
-                                incre_split_size_.store(0, std::memory_order_relaxed);// 让上面的线程去到write部分
-                                create_bool_.store(false, std::memory_order_relaxed);
-                                // 最后释放当前CAS失败的线程
-                                // 先减1再解锁?
-                                if (lock_temp) rwlock_.unlock_shared();
-                                proc_num_.fetch_sub(1, std::memory_order_relaxed);
-                                break;
-                            }
-                        }  
-                        break; //创建成功直接break
-                    } else {
-                        create_bool_.store(false, std::memory_order_relaxed);
-                        if (lock_temp) rwlock_.unlock_shared();
-                        proc_num_.fetch_sub(1, std::memory_order_relaxed);
-                        break;// 当前空间充足,这里处理极端的情况在上面停留的线程，等到了新的文件创建完成才去CAS
-                    }
-                    
-                } else {
-                    // 序列号不同，说明已经创建了新的文件,这里刷新标志
-                    // 然后退出这里的while创建逻辑，直接去写入数据
-                    // 虽然这里直接去写入可能写入的当前文件达到阈值，新文件还没有创建完成
-                    //* 这里序列号不同说明已经是上一批上上批的操作了
-                    //* 这里直接去写入就算到达阈值，避免该操作阻塞太久
-                    create_bool_.store(false, std::memory_order_relaxed);
-                    break;
+        if (create_bool_.compare_exchange_strong(create, true,std::memory_order_acquire, std::memory_order_relaxed)) {
+            // seq 
+            seq_i = sequence_.load(std::memory_order_relaxed);
+            // 这里进来则序列号一定更改，在标志设置更新前去设置序列号
+            if (seq_i == seq_o) {
+                int lock_temp = 0;
+                proc_num_.fetch_add(1, std::memory_order_relaxed);
+                if (lock_sign_.load(std::memory_order_relaxed) == true) {
+                    lock_temp = 1;
+                    printf("lock_shared behind\n");
+                    rwlock_.lock_shared();
+                    printf("lock_shared after\n");
                 }
-                //? 不等于则不创建，说明当前批已经有线程去创建新的文件了
-                //? 这里退出if逻辑去进行数据的追加
-                //? 这里有一种可能就是有多个线程运行不及时
-                //? 然后一个当前文件可能达到了阈值，然后继续向该文件进行写入
-                //? 这里如果线程写入的数据足够大，并且线程数量足够多
-                //? 那么某个文件可能非常之大
-                //? 但是这是很难出现的 因为首先要在两个if之间停留，同时停留的线程数量还必须非常大
+                
+                // 比较成功，则去创建
+                // 这里再检查一次大小，如果大小大于等于limit那么进行真正的创建
+                if (incre_split_size_.load(std::memory_order_acquire) >= this->limit) {
+                    uint64_t suffix = file_suffix_.fetch_add(1, std::memory_order_relaxed);
+                    std::string filename = "incremental_" + std::to_string(suffix) + ".log";
+                    int new_fd = open(filename.c_str(), O_RDWR | O_APPEND | O_CREAT, 0644);
+                    if (new_fd == -1) {
+                        throw std::runtime_error("文件open出错");
+                    }
+                    //* 成功创建，按照顺序来更新原子值
+                    //todo 这里涉及下面可能还有写入操作，当前的 incre_split_size_的更新
+                    //todo _incremental_log fd的更新
+                    //todo 以及最后的create_bool_的更新,还有当前fd的关闭
+                    //todo 考虑到下面的对于当前fd的写入操作
+                    //todo 如果这里先关闭，那么可能写入到错误的fd中
+                    //todo 所以关闭一定在fd的更新后面，即先记录当前的fd然后更新fd再去关闭
+                    //todo 那么这里的_size_该如何更新呢，在更新了fd后再去更新
+                    //todo 那么这样的话就可能下面的写入操作在_size_更新的前面
+                    //todo 然后向该fd前面写入的一些数据就会未记录,所以会少记录一些数据
+                    //todo 由于每次写入  的数据并不是非常大，如果每次写入的数据非常大
+                    //todo 那么在下面的写入操作需要再增加一些检测逻辑,这里数据小所以浮动范围可以接收
+                    //todo 那么就先修改fd，然后更新size最后关闭原fd
+                    //todo 这里呢下面写入操作还是可能失败因为原子加载和写入两个操作合在一起，并不是原子的
+                    //todo 下面写入的时候使用while直到写入成功
+
+                    wc_sign_.store(false, std::memory_order_relaxed);// 这里锁住其他写操作
+                    // 这里只有当w_num_为0时才会去更新当前的文件信息
+                    std::cout << "320 if (w_num_.load(std::memory_order_relaxed) == 0)" << std::endl;
+                    while (true) {
+                        if (w_num_.load(std::memory_order_relaxed) == 0) {
+                            std::cout << "323 if (w_num_.load(std::memory_order_relaxed) == 0)" << std::endl;
+
+                            int old = _incremental_log.exchange(new_fd, std::memory_order_relaxed);
+
+                            ::fsync(old);// 后续可以优化
+
+                            close(old);
+                            // create_bool_, incre_split_size_, wc_sign_
+                            // create_bool_控制还未CAS进入的线程和在下面while循环的线程
+                            // incre_split_size_控制最外层的还未进入while的线程
+                            // 外层while不进入则直接写入，如果wc_sign_没更新那么将会阻塞在
+                            // 同一个位置，这里为了降低线程阻塞在同一个区域
+                            // 那么在更新incre_split_size_前更新wc_sign_
+                            // 但是这样的话incre_split_size可能会少记录在下面while
+                            // 的线程写入的字节数，然后被incre_split_size_更新为0
+                            // 但是在上面原本要下去阻塞的线程这时阻塞到了下面的while
+                            // 不，这里是不同的堆栈所以更新了信息后，尽可能的在下面阻塞
+                            // 可是这里涉及到共同访问一个缓存行即wc_sign_
+                            // 那么其实可能并不是并发，这里每个线程内部都需要去更新这个
+                            // wc_sign_的值,这里缓存行被标明为失效然后都去获取
+                            // 那么其实会有更大的竞争，那么这里呢就先更新wc_sign_
+                            // 然后更新incre_split_size_
+                            wc_sign_.store(true, std::memory_order_relaxed);//释放下面阻塞线程
+                            sequence_.fetch_add(1, std::memory_order_relaxed);// 更新序列号，让进入的线程
+                            incre_split_size_.store(0, std::memory_order_relaxed);// 让上面的线程去到write部分
+                            create_bool_.store(false, std::memory_order_relaxed);
+                            // 最后释放当前CAS失败的线程
+                            // 先减1再解锁?
+                            std::cout << "if (lock_temp) rwlock_.unlock_shared();" << std::endl;
+                            if (lock_temp) rwlock_.unlock_shared();
+                            proc_num_.fetch_sub(1, std::memory_order_relaxed);
+                            break;
+                        }
+                    }  
+                    break; //创建成功直接break
+                } else {
+                    create_bool_.store(false, std::memory_order_relaxed);
+                    std::cout << "rwlock_.unlock_shared behind" << std::endl;
+                    if (lock_temp) rwlock_.unlock_shared();
+                    std::cout << "rwlock_.unlock_shared after" << std::endl;
+                    proc_num_.fetch_sub(1, std::memory_order_relaxed);
+                    break;// 当前空间充足,这里处理极端的情况在上面停留的线程，等到了新的文件创建完成才去CAS
+                }
                 
             } else {
-                // 比较失败,create值被更改为true
-                while (create_bool_.load(std::memory_order_relaxed) == true) {}
-                // 循环直到为false
-                // 这里可以直接break
-                // 也可以loop++后到上面再执行1个原子操作
-                // 可是能走到这必然说明等待的任务创建已经完成，然后可以进行写入数据，create_bool_已经被置为false
-                // 这里可以直接break;
+                // 序列号不同，说明已经创建了新的文件,这里刷新标志
+                // 然后退出这里的while创建逻辑，直接去写入数据
+                // 虽然这里直接去写入可能写入的当前文件达到阈值，新文件还没有创建完成
+                //* 这里序列号不同说明已经是上一批上上批的操作了
+                //* 这里直接去写入就算到达阈值，避免该操作阻塞太久
+                create_bool_.store(false, std::memory_order_relaxed);
+                // if (lock_temp) rwlock_.unlock_shared();
                 break;
             }
+            //? 不等于则不创建，说明当前批已经有线程去创建新的文件了
+            //? 这里退出if逻辑去进行数据的追加
+            //? 这里有一种可能就是有多个线程运行不及时
+            //? 然后一个当前文件可能达到了阈值，然后继续向该文件进行写入
+            //? 这里如果线程写入的数据足够大，并且线程数量足够多
+            //? 那么某个文件可能非常之大
+            //? 但是这是很难出现的 因为首先要在两个if之间停留，同时停留的线程数量还必须非常大
+            
+        } else {
+            // 比较失败,create值被更改为true
+            while (create_bool_.load(std::memory_order_relaxed) == true) {}
+            // 循环直到为false
+            // 这里可以直接break
+            // 也可以loop++后到上面再执行1个原子操作
+            // 可是能走到这必然说明等待的任务创建已经完成，然后可以进行写入数据，create_bool_已经被置为false
+            // 这里可以直接break;
+            break;
+        }
         loop++;
     }
 
@@ -403,7 +411,9 @@ void persister::persiste(std::string const& key, int val, int num) noexcept {
     proc_num_.fetch_add(1, std::memory_order_relaxed);
     if (lock_sign_.load(std::memory_order_relaxed) == true) {
         lk_temp = 1;
+        std::cout << "410 rwlock_.lock_shared behind" << std::endl;
         rwlock_.lock_shared();
+        std::cout << "410 rwlock_.lock_shared after" << std::endl;
     }
     // 先++w_num_
     while (true) {
@@ -436,7 +446,7 @@ void persister::persiste(std::string const& key, int val, int num) noexcept {
             incre_split_size_.fetch_add(result, std::memory_order_relaxed);
             w_num_.fetch_sub(1, std::memory_order_relaxed);
             //成功写入后直接退出当前操作，这里可以用return
-
+            
             if (lk_temp) rwlock_.unlock_shared();
             proc_num_.fetch_sub(1, std::memory_order_relaxed);
             return;
@@ -514,7 +524,7 @@ void persister::combine_flush_log() {
     int fd = -1;
     while (true) {
         std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-        auto target_time = now + std::chrono::seconds(60);
+        auto target_time = now + std::chrono::seconds(300);
         std::this_thread::sleep_until(target_time);    
         
         // 这里直接combine, 在close的时候调用fsync
@@ -662,6 +672,173 @@ void persister::start_combine_flush_thread() noexcept {
     std::cout << "combine thread start->>" << std::endl;
 }
 
+void persister::quit_func() {
+
+    FILE *fp = NULL;
+    int fd = -1;
+    std::cout << "开始清理增量文件" << std::endl;
+    std::string prex_filename("incremental_");
+    lock_sign_.store(true, std::memory_order_relaxed);
+    rwlock_.lock();
+    if (proc_num_.load(std::memory_order_relaxed) == 0) {
+        int suffix = file_suffix_.load(std::memory_order_relaxed);
+        ::fsync(_incremental_log.load(std::memory_order_relaxed));
+        for (int i = 1; i < suffix; i++) {
+            // read all incremental log to full log
+            // call bpt insert
+            // read according to the format
+            std::string filename = prex_filename + std::to_string(i) + + ".log";
+            fp = fopen(filename.c_str(), "rb");
+
+            if (fp == nullptr) {
+                throw std::runtime_error("无法打开文件在combine时");
+            }
+            
+            
+            fd = ::fileno(fp);
+            struct stat st;
+            if (::fstat(fd, &st) < 0) {
+                ::fclose(fp);
+                throw std::runtime_error("无法获取文件大小");
+            }
+            size_t size = static_cast<size_t>(st.st_size);
+            char *addr = nullptr;
+            if (size > 0) {
+                // 创建内存映射
+                addr = (char*)::mmap(nullptr, size, PROT_READ, MAP_PRIVATE, fd, 0);
+                if (addr == MAP_FAILED) {
+                    ::fclose(fp);
+                    throw std::runtime_error("内存映射失败");
+                }
+
+                // 对字符串进行解析
+                //1 key1 val1\r\n
+                int current = 0;
+                std::string key;
+                std::string val;
+                while (current < size) {
+
+                    char c = addr[current++];
+                    if (current == size) {
+                        throw std::runtime_error("日志损坏");
+                    }
+
+                    key.clear();
+                    val.clear();
+
+                    if (c == '1') {
+                        // set
+                        while (current < size && addr[current] == ' ') {
+                            current++;
+                        }
+                        if (current == size) {
+                            fclose(fp);
+                            throw std::runtime_error("日志损坏");
+                        }
+                        //key 
+                        while (current < size && addr[current] != ' ') {
+                            key += addr[current++];
+                        }
+
+                        //1 key1 val1\r\n2 key1\r\n
+                        // skip 
+                        while (current < size && addr[current] == ' ') {
+                            current++;
+                        }
+                        if (current == size) {
+                            fclose(fp);
+                            throw std::runtime_error("日志损坏");
+                        }
+                        // char prev = '';
+                        //val
+                        while (current < size) {
+                            if (addr[current] == '\r' && current + 1 < size && addr[current + 1] == '\n') {
+                                current += 2;
+                                break;    
+                            }
+
+                            if (current + 1 == size) {
+                                fclose(fp);
+                                throw std::runtime_error("日志损坏");
+                            }
+                            
+                            val += addr[current++];
+                        }
+
+                        // key val
+                        // insert到全量文件
+                        _btree.insert(bpt::key_t(key.c_str()), std::stoi(val));
+                        
+                    } else if (c == '2') {
+                        // get
+                        // 2 key1\r\n
+                        char prev = '\0';
+                        while (current < size) {
+                            if (addr[current] == '\n' && prev == '\r') {
+                                current++;
+                                break;
+                            }
+                            prev = addr[current++];
+                        }
+                    } else if (c == '3') {
+                        //remove
+                    }
+                    
+                }   
+                if (munmap(addr, size) == -1) {
+                    perror("munmap");
+                    throw std::runtime_error("munmap except");
+                }
+            }
+            // 删除fp文件
+            fclose(fp);
+            ::remove(filename.c_str());       // 使用C的remove
+        }
+        // 删除所有的增量文件，重置信息
+        // 重新创建文件, 更新_log指向，更新file_suffix_
+        // 更新split_size_大小
+        int log = open("incremental_1.log", O_RDWR | O_APPEND | O_CREAT, 0644);
+        std::cout << "增量全部刷到全量，exit退出" << std::endl;
+        exit(0);
+        _incremental_log.store(log, std::memory_order_relaxed);
+        file_suffix_.store(2, std::memory_order_relaxed);
+        incre_split_size_.store(0, std::memory_order_relaxed);
+
+        
+        lock_sign_.store(false, std::memory_order_relaxed);
+        rwlock_.unlock();
+    }
+        
+}
+
+void persister::start_cmd_quit_thread() noexcept {
+
+    std::thread cmd_thread([this] {
+
+        std::string input;
+        std::string_view cmd("quit");
+        while (true) {
+            std::cout << "等待输入cmd" << std::endl;
+            std::getline(std::cin, input);
+            std::cout << "输入cmd完成" << std::endl;
+            auto result = input <=> cmd;
+            if (result == std::strong_ordering::less) {
+
+                std::cout << "cmd not exist\n请重新输入" << std::endl;
+                
+            } else if (result == std::strong_ordering::equal) {
+
+                std::cout << "quit!" << std::endl;
+                this->quit_func();
+                exit(0);
+                
+            } else if (result == std::strong_ordering::greater) {
+                std::cout << "cmd not exist\n请重新输入" << std::endl;
+            }
+        }
+    });
+    cmd_thread.detach();
+}
 
 }
 
