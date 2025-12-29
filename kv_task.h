@@ -9,6 +9,7 @@
 #include "./lock_free_ring_buf/lock_free_ring_buf.h"
 #include "memory_pool/memory_pool.h"
 #include "./MemoryBTreeLock/m_btree.h"
+#include "./resp_state_stack/resp_state_stack.h"
 
 #define READ_CACHE_SIZE 1024*16
 #define RING_BUF_SIZE 1024
@@ -26,16 +27,15 @@ typedef enum value_type_e{
     TYPE_STRING
 } value_type_t;
 
+
 typedef struct {
     char cache[READ_CACHE_SIZE];
     uint32_t length;
     uint32_t head;
 } read_cache_t;
 
-typedef enum {
-    PARSE_STATE_HEADER,
-    PARSE_STATE_BODY
-} read_state_t;
+
+
 
 // typedef struct kv_type_s{
 //     //* 这里用指针，然后直接在堆上存放数据
@@ -56,18 +56,84 @@ typedef struct {
 // 只需要一个支持变长分配的内存池
 
 typedef struct connection_s {
-    int fd;
-    //* 这里使用全局数据结构
-    // kv_type kv_array[KV_ARRAY_SIZE];//* 存储键值对数据的数组
-    // char* tokens[16];//* 存储解析到的token
-    // char pkt_data[RING_BUF_SIZE + 1];//* 多一个终止符
     //* 这里只需要放入read_rb.然后放入线程的任务队列中
+    
+    int fd;
+
     ring_buffer read_rb;     // 读环形缓冲区，在该缓冲区处理包  
     read_cache_t read_cache;   // 数据缓冲区，数据最先放在read_cache
     read_state_t state;
-    message_header_t current_header;
+    resp_state_stack_t parser_stack;
+
+
+
+
+    // 连接状态, 后续实现连接池
+    // uint32_t state;
+    // #define CONN_STATE_READING   0x01
+    // #define CONN_STATE_PARSING   0x02
+    // #define CONN_STATE_PROCESSING 0x04
+    // #define CONN_STATE_WRITING   0x08
+
+     /*** 当前对象信息 ***/
+    // struct {
+    //     char type;              // 当前解析的类型: '+', '-', ':', '$', '*'
+        
+    //     // 对于简单类型（+ - :）的行数据累积
+    //     struct {
+    //         char buffer[256];   // 行数据缓冲区（固定大小）
+    //         size_t pos;         // 当前位置
+    //         size_t expected_end;// 期望结束位置（如果有长度的话）
+    //     } line;
+        
+    //     // 对于批量字符串（$）的数据累积
+    //     struct {
+    //         // 两种存储策略：
+    //         union {
+    //             char inline_data[128];  // 小数据：内联存储
+    //             char* heap_data;        // 大数据：堆存储
+    //         } storage;
+            
+    //         size_t allocated;   // 已分配大小（堆存储时）
+    //         size_t filled;      // 已填充大小
+    //         size_t expected;    // 期望总大小
+    //         uint8_t storage_type; // 0=内联, 1=堆
+    //     } bulk;
+        
+    //     // 对于数组（*）的累积
+    //     struct {
+    //         long long expected_count;    // 期望元素个数
+    //         long long parsed_count;      // 已解析元素个数
+            
+    //         // 已解析的元素暂存
+    //         void** elements;             // 元素指针数组
+    //         size_t elements_capacity;    // 数组容量
+            
+    //         // 当前正在解析的元素状态
+    //         struct IncompleteParser* current_element;
+    //     } array;
+        
+    //     // 对于所有类型的通用信息
+    //     long long length_value;          // 从长度行解析出的值
+    //     size_t total_bytes_needed;       // 总共需要的字节数
+    //     size_t bytes_received;           // 已接收的字节数
+    // } current;
+
+    //     /*** 父对象引用（用于嵌套） ***/
+    //     //* 用于数组的嵌套请求
+    //     //* 这里用链式和循环,来模拟递归的栈开销
+    // struct IncompleteParser* parent;
+    
+    // /*** 错误状态 ***/
+    // int has_error;
+    // char error_msg[128];
+    
+    // message_header_t current_header;
     
 } connection_t;
+
+
+
 // enum value_type_e;
 typedef enum value_type_e value_type_t;
 

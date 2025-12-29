@@ -6,10 +6,11 @@ stage_t *stage_create(size_t capacity)
 {
     stage_t *stage = NULL;
     // create allocator
-    size_t size = sizeof(stage_t) + capacity;
+    // size_t size = sizeof(stage_t) + capacity;
+    size_t size = capacity;
     if ((stage = malloc(size)) != NULL)
     {
-        stage->capacity = capacity;
+        stage->capacity = capacity - sizeof(stage_t);
         // 这里在create里可以不用锁，因为当前stage还未链接到链表中，并不会被多个线程访问，最多就是返回的当前线程
         atomic_init(&stage->used, 0);
         atomic_init(&stage->reference_count, 0);
@@ -198,7 +199,7 @@ block_alloc_t stage_alloc_pessimistic(size_t size, stage_allocator_t *allocator)
                 // } else {
                     atomic_fetch_add_explicit(&stage->lock.seq_lock, 1, memory_order_release);
                     // printf("当前stage容量不足,无法申请\n");
-                    printf("stage_alloc_pessimistic exit");
+                    // printf("stage_alloc_pessimistic exit");
                     // exit(-11);
                     return (block_alloc_t){
                         .ptr = NULL,

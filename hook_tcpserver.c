@@ -9,7 +9,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
-#define MAX_EVENTS 2
+// #define MAX_EVENTS 2
 
 
 typedef struct process_data_s {
@@ -48,7 +48,7 @@ void server_reader(void *arg) {
 
 	connection_t *c = (connection_t*)malloc(sizeof(connection_t));
 	memset(&c->read_cache, 0, sizeof(read_cache_t));
-	c->state = PARSE_STATE_HEADER;
+	c->state = STATE_INIT;
 	c->current_header = 0;
 	c->fd = fd.c_fd;
 	RB_Init(&c->read_rb, RING_BUF_SIZE);

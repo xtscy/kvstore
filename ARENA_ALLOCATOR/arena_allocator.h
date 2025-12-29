@@ -12,7 +12,7 @@
 #include "../Sequence_lock/Sequence_lock.h"
 // #include "../Sequence_lock/Sequence_lock.h"
 
-#define STAGE_DATA_SIZE 2048 * 5
+// #define STAGE_DATA_SIZE 2048 * 5
 
 // 
 typedef struct stage_s {

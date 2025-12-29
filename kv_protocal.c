@@ -61,15 +61,67 @@ void Process_Message(connection_t *c)
 // void smart_backoff_strategy() {
 
 // }
-extern uint32_t global_output_addr_prev;
+// extern uint32_t global_output_addr_prev;
 int Process_Protocal(connection_t *c)
 {
     //* 依次读到每个数据包，这里解决粘包和拆包问题
-    uint32_t size = RB_Get_Length(&c->read_rb);
+    // uint32_t size = RB_Get_Length(&c->read_rb);
     //* 这里的结构体必须有读头部和读body的状态标志
     //* 因为可能被拆包，下一次进来不一定就是直接处理头部，所以需要判断
     while (1)
     {
+        // 按照resp协议的状态转换来读取请求
+        // 一个请求就是一个数组类型组织的批量字符串
+        // 这里先读取开头的数组长度和命令，放在一个阶段解析，然后做一些参数检查
+        // 比如get命令的参数只能是1个，set命令的参数是两个
+        // 这里检查完后,就去解析参数，然后构造成一个block，命令之间用空格分割
+        // 可是这里使用的是批量字符串，支持了空格和\r\n但是如果按照空格分割，那么在真正的block被解析的时候
+        // 其实还是不能支持空格的。所以底层的解析需要更改
+        // 这里直接按照协议解析，然后如果是set那么这里直接调用set方法吗
+        // 这里还是交给线程去执行任务，那么这里还是需要构造block
+        // 但是内部结构需要发生改变，这里应该记录键的长度还有值得长度
+        // 然后block->ptr指向一片空间，然后把键和值写到该空间
+        // 然后线程的任务解析也需要修改
+        // 这里线程读到一个block，这个block目前是只是一个请求，然后标记一下是set还是get
+        // 但是这里也可以实现成一个批量写请求到一个block中，然后这个block被读取然后执行多个请求，这里节省了一个block的开销
+        // 但是解析的耗时增加了，如果只是1个的话拿到该块，就能够去到对应的函数处理，处理完了就下一个
+        // 但是如果有多个，那么就又需要一层协议解析，然后依次处理任务
+        // 所以这里就先实现成,1个block对应1个请求，线程拿到直接执行就可以，这样也节省了多个任务再次解析的一个开销
+        // 所以这里在参数个数和第一个命令参数读取完后，去到对应的分支构造block请求 ，然后放入到某个线程的队列中
+        // 然后线程拿到block并且去执行相应的任务，然后发送对应的响应信息，当然这里如果请求错误
+        // 那么就需要构造一个错误信息的block，然后线程拿到该错误信息请求，去响应对应的错误信息给客户端按照resp协议
+        // 那么这里每用完一个block，就可以把当前block再回收，放入固定内存池
+        // block的内容是在ptr中，这里的ptr就先不回收
+        // 因为回收策略有点问题，再者这里如果stage不够用会去新开辟，所以可以先不考虑回收stage的ptr
+
+
+        // 流式解析，这里是初始状态那么就去读
+        // 这里先读取*类型，这里直接判断如果不是*那么说明发送的协议有问题
+        // 因为命令都是按照数组的形式进行发送
+
+        if (c->parser_stack.top == -1) {
+            // 创建一个栈帧，用于处理数据
+            
+            
+        } else {
+            int temp_top = c->parser_stack.top;
+            if (c->parser_stack.frames[temp_top].state == STATE_INIT) {
+
+
+                
+            } else if (c->parser_stack.frames[temp_top].state == STATE_READING_LINE) {
+
+            } else if (c->parser_stack.frames[temp_top].state == STATE_EXPECTING_CR) {
+
+
+                
+            }
+        }
+        
+        
+        
+        
+        
         if (c->state == PARSE_STATE_HEADER) {
             //* 处理头部,可是头部的包也可能被拆分，如果不足4字节直接退出处理
             if (c->read_rb.Length < 4) {

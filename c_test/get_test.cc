@@ -183,7 +183,7 @@ int main(int argc, char* argv[]) {
                 // * 这里也可以两个都是不同的线程
                 //* 这里不会接收到下一个包的消息，在下一个包发送之前
                 // * 所以可以直接break然后重新读取
-                std::cout << "插入成功: " << *iter1 << std::endl;
+                // std::cout << "插入成功: " << *iter1 << std::endl;
                 break;
             } else {
                 std::cout << "插入失败，值已存在" << *iter1 << std::endl;

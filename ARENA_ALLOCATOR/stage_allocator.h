@@ -1,7 +1,7 @@
 #ifndef STAGE_ALLOCATOR
 #define STAGE_ALLOCATOR
 
-#define stage_size 4096
+#define stage_size 4096 * 16
 
 #include "arena_allocator.h"
 #include <unistd.h>
