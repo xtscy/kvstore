@@ -98,27 +98,383 @@ int Process_Protocal(connection_t *c)
         // 流式解析，这里是初始状态那么就去读
         // 这里先读取*类型，这里直接判断如果不是*那么说明发送的协议有问题
         // 因为命令都是按照数组的形式进行发送
+        //? 这里解析到每一个字符串然后直接放进数组中
+        //? 对于嵌套数组也是如此，把真实的数据放到array中，这里是指针指向arena
 
+        // 这里外层只需要初始化top值为-1就行
         if (c->parser_stack.top == -1) {
-            // 创建一个栈帧，用于处理数据
-            
-            
+            // 使用一个栈帧，用于处理数据
+            // 初始化字段即为创建，对象的真实创建在c的malloc时已经创建
+            c->parser_stack.top = 0;
+            c->parser_stack.frames.state = STATE_INIT;
         } else {
-            int temp_top = c->parser_stack.top;
+            // 拿到当前所处的栈帧
             if (c->parser_stack.frames[temp_top].state == STATE_INIT) {
+                // *当前栈帧是INIT状态  
+                //* 这里第一个类型必须是数组否则报错，但是这里还要考虑如果嵌套的情况
+                //* 如果是嵌套那么可以不用读到*而是其他类型
+                //* 所以这里的最外层读取和嵌套读取的状态是不同的这里应该区分开
+                //* 如果有嵌套情况存在那么对应的状态设置为
+                //* 这里需要先读取*类型和元素长度,当然可能缓冲区数据不够，这里类型说明都是1个字节
+                //*所以这里直接判断长度是否有1个字节
+                //* 这里是最外层的数组初始化
+                if (c->read_rb.Length < 1) {
+                    return -3;
+                } else {
+                    char temp_c = 0;
+                    if (RB_Read_String(&c->read_rb, &temp_c, 1) == RING_BUFFER_ERROR) {
+                        abort();
+                        exit(-21);
+                    }
+                    // 读到类型，然后设置帧类型和当前读取状态
+                    // 这里做字符匹配,根据不同的类型
+                    // 设置不同的下一个外层状态和帧类型
+                    // 基本类型
+                    // if (temp_c == '+' || temp_c == '-' || temp_c == ':') {
 
+                    //     c->parser_stack.frames[temp_top].ftype = FRAME_SIMPLE;
+                    //     // 这里是简单类型，那么下一步就是读取行数据
+                    //     c->parser_stack.frames[temp_top].state = STATE_READING_LINE;
+                    //     c->parser_stack.frames[temp_top].received_len = 0;
+
+                    //* 简单类型没有期望长度,直接读到\r\n为止
+                    //     //* 那么这里状态实际上不是读取行数据,而是直接设置成读取\r\n
+                    //     //* 因为并不知道需要读取多少行数据
+                    // }
+                    if (temp_c == '*') {
+                        //去读取元素个数
+                        // 正确读取到数组状态,设置读取数组长度的状态
+                        c->parser_stack.frames.ftype = FRAME_ARRAY;
+                        c->parser_stack.frames.state = STATE_ARRAY_READING_LENGTH;
+                        c->parser_stack.line.expected_end = 0;
+                        c->parser_stack.line.line_pos = 0;
+                        memset(c->parser_stack.line.line_buffer, 0, MAX_LINE_BUFFER);
+
+                        memset(&c->parser_stack.array, 0, sizeof(c->parser_stack.array));
+                        c->parser_stack.array.mode = MODE_INLINE_ONLY;
+                    } else {
+                       c->is_back = true;
+                       close(fd);
+                       return -3;
+                    }
+                }
+
+            }  else if (c->parser_stack.frames.state == STATE_ARRAY_READING_LENGTH) {
+                //* 读取长度，这里长度直到读到\r\n
+                //* 这里为了尽可能少的去低效率的解析
+                //* 则有一个行数据缓冲区，在要解析数据时，先去行数据缓冲区
+                //* 然后再去到环形队列中去读取
+                //* 这里先判断哪一分支
+                int read_byte = 0;
+                if (c->read_rb.Length >= 64) {
+                    read_byte = 64;
+                } else if (c->read_rb.Length >= 32) {
+                    read_byte = 32;
+                } else if (c->read_rb.Length >= 16) {
+                    read_byte = 16;
+                } else if (c->read_rb.Length >= 8) {
+                    read_byte = 8;
+                } else if (c->read_rb.Length >= 4) {
+                    read_byte = 4;
+                } else if (c->read_rb.Length >= 2) {
+                    read_byte = 2;
+                } else if (c->read_rb.Length >= 1) {
+                    read_byte = 1;
+                } else {
+                    return -3;                    
+                }
 
                 
-            } else if (c->parser_stack.frames[temp_top].state == STATE_READING_LINE) {
+                if (expected_end > MAX_LINE_BUFFER - read_byte) {
+                    // 当前长度过长,直接断开连接
+                    // 这里再设置个标记位上层循环先判断连接是否关闭如果关闭依次返回
+                    // 返回到hook的recv然后直接退出该协程
+                    c->is_back = true;
+                    close(c->fd);
+                    return;
+                }
+                if (RB_Read_String(&c->read_rb, c->parser_stack.line.line_buffer + c->parser_stack.line.line_pos, read_byte) == RING_BUFFER_ERROR) {
+                    abort();
+                    exit(-21);
+                }                   
+                // line_pos是当前解析的位置，expected_end是当前数据的末尾
+                expected_end += read_byte;
+                // 读到了新数据，while解析数据，这里有可能读到\r\n后面的数据
+                // 这里读取到数据后必然去到下面解析
+                //这里如果包含了\r\n必然读取到这个才退出
+                // 否则退出说明当前数据\r\n还未包含，这个退出表示当前的数据全部解析完了
+                while (true) {
+                    //先判断line_pos是否到达了末尾，如果到达了末尾直接退出
+                    if (c->parser_stack.line.line_pos == c->parser_stack.line.expected_end) {
+                        // 当前line中的数据全部解析完，但是没有完整的\r\n
+                        // 这里可以多加一个标志位，但是这里也可以判断最后一个是否是\r
+                        // 先直接判断是否是\r如果是那么保留1个字符
+                        // 下面如果读取到\r直接break了，如果是其他非法字符直接关闭
+                        // 所以这里只有合格字符并且当前已经读到了末尾，那么这里直接重置状态
+                        c->parser_stack.line.line_pos = 0;
+                        c->parser_stack.line.expected_end = 0;
+                        break;
+                    }
+                    // if (c->parser_stack.line_buffer[c->parser_stack.line.line_pos] == '\n') {
+                    //     if ( c->parser_stack.line_buffer[c->parser_stack.line.line_pos] > 0 &&
+                    //         c->parser_stack.line_buffer[c->parser_stack.line.line_pos - 1] == '\r') {
+                    //         // 长度读取到\r\n,读取完，设置下一状态
+                    //         c->parser_stack.frame.state = STATE_ARRAY_READING_ELEMENTS;
+                    //         break;
+                    //     } else {
+                            
+                    //         //当前是读取长度，但是却发送了\n无效字符，直接关闭连接，回退
+                    //         // 设置回退标志
+                    //         c->is_back = true;
+                    //         close(c->fd);
+                    //         return -3;
+                    //     }
+                    // }
+                    // *两种，读\r\n再解析
+                    // *2. 用uint读1解析1
+                    // 对于数组字符
+                    char cur_char = c->parser_stack.line.line_buffer[c->parser_stack.line.line_pos];
 
-            } else if (c->parser_stack.frames[temp_top].state == STATE_EXPECTING_CR) {
+                    if (cur_char >= '0' && cur_char <= '9') {
+                        int cur_num = cur_char - '0';
+                        // 这里内联直接使用的是inline_count
+                        // 如果是动态那么个数存储在expected_count中
+                        if (c->parser_stack.array.mode == MODE_INLINE_ONLY) {
+
+                            if (c->parser_stack.array.inline_count > 255 / 10) {
+                                // 不能除10直接转动态
+                                // 大于静态大小，去开辟动态数组，这里没有数据，因为数组元素
+                                // 永远是读取完长度后才去读取数组元素的数据
+                                c->parser_stack.array.mode = MODE_HYBRID;
+                                c->parser_stack.array.expected_count = c->parser_stack.array.inline_count;
+                                c->parser_stack.array.expected_count *= 10;
+                                c->parser_stack.array.expected_count += cur_num;
+    
+                            } else {
+                                //可以除10
+                                int temp_cnt = c->parser_stack.array.inline_count * 10;
+                                if (temp_cnt > 255 - cur_num) {
+                                    // 转为动态
+                                    c->parser_stack.array.mode = MODE_HYBRID;
+                                    // 元素数这里最大不能超过size_t
+                                    c->parser_stack.array.expected_count = temp_cnt + cur_num;
+                                } else {
+                                    // 静态足够
+                                    // c->parser_stack.array.inline_count
+                                    c->parser_stack.array.inline_count = temp_cnt + cur_num;
+                                }
+    
+                            }
+                            c->parser_stack.array.inline_count 
+                        } else {
+                            // MODE_HYBRID
+                            // 对于动态数组，直接增加计数即可
+                            c->parser_stack.array.expected_count = c->parser_stack.array.expected_count * 10 + cur_num;
+                        }
+                    } else if (c == '\r') {
+                        // 设置状态为期望回车\n,这里直接break
+                        // if (c->parser_stack.line.line_buffer[c->parser_stack.line.expected_end - 1] == '\r') {
+                        //     // 保存\r到第一个字符
+                        //     c->parser_stack.line.line_buffer[0] = '\r';
+                        //     c->parser_stack.line.line_pos = 0;
+                        //     c->parser_stack.line.expected_end = 1;
+                        // } else {
+                        //     c->parser_stack.line.line_pos = 0;
+                        //     c->parser_stack.line.expected_end = 0;
+                        // }
+                        c->parser_stack.frames.state = STATE_EXPECTING_ARRAY_LENGTH_LF;
+                        c->parser_stack.line.line_pos++;
+                        break;
+                    } else {
+                        // 非法字符，直接错误信息设置回退，然后关闭,这里只能读到数字字符和\r
+                        c->is_back = true;
+                        close(c->fd);
+                    }
+
+                    ++c->parser_stack.line.line_pos;
+                }
+
+            } else if (c->parser_stack.frames.state == STATE_ARRAY_READING_ELEMENTS) {
+            // else if (c->parser_stack.frames.state == STATE_READING_LINE) {
+                //外层没有line状态,这里可以直接去掉,因为都是走的数组状态
+                // 内层才是读取数据的状态
+                // 基于协议，服务器接收到的都是被数组封装的请求
+            // }
+                //* 去读取每个元素，这里每个元素都是一个类型
+                //* 那么在读取特定简单类型或者是批量字符串类型时
+                //* 这里这个类型如果直接存储则会直接覆盖掉原本的数组类型
+                //* 所以这里外层类型还是数组类型不动，然后在数组元素读取内部
+                //* 存储的类型，这里解析元素的操作写在该STATE_ARRAY_READING_ELEMENTS内
+                //* 而不是外层的frames.state的判断
+                //* 这里如果数据不完整，那么继续跳到外层读取，然后state状态依然走该分支
+                //* 然后继续读取.即外层依然是读取元素类型
+                //* 外层也不需要简单类型的读取，因为发送的命令都是基于数组的
+                //* 所以外层是大的数组状态，内层是简单类型和批量字符串类型的处理
+
+                //* 这里写内层类型的状态迁移
+                //* 这里在读取前肯定需要,如果是动态数组那么肯定需要动态开辟
+                //* 并且如果是静态数组，那么做一定的初始化工作，所以这里加1个
+                //* 数组读取值得初始化状态
+                //* 这里初始化完毕，去进行
+                //* 这里判断当前元素的一个读取状态
+                //* 因为这里可能在某一状态数据不足从而退出
+                //* 再次进入也需要判断当前处理的是哪一种类型，不同类型不同分支
+                //* 所以这里有两个标志，一个用于当前外层状态，一个用于判断当前处理的是哪种类型不同类型不同分支
+
+                if (c->parser_stack.array.current_state == STATE_READING_TYPE) {
+                    //* 外层判断类型，之后之后先按类型分
+                    //* 这里下一个字节的读取先判断line的缓冲区如果没有再去环形缓冲区中
+                    //* 这里如果没数据则去读取，有数据不读取
+                    if (c->parser_stack.line.line_pos == c->parser_stack.line.expected_end) {
+                        //* 当前没有数据，从环形缓冲区中去拿
+                        //* 这里调用封装的取数据的函数,并且如果该缓冲区也没有数据
+                        //* 那么返回一个负值，表示错误，然后这里判断返回值
+                        //* 直接设置回退标志和关闭连接然后return
+                    }
+                    // 现在肯定有数据
+                    char temp_type = c->parser_stack.line.line_buffer[c->parser_stack.line.line_pos];
+                    if (c->parser_stack.line.line_pos + 1 == c->parser_stack.line.expected_end) {
+                        c->parser_stack.line.line_pos = 0;
+                        c->parser_stack.line.expected_end = 0;
+                    } else {
+                        c->parser_stack.line.line_pos ++;
+                    }
+                    // 先对line_pos进行了处理，然后再去判断当前的类型
+                    if (temp_type == '$') {
+                        //设置内层的ftype
+                        // 批量字符串设置读取长度
+                        c->parser_stack.array.current_type = FRAME_BULK;
+                        c->parser_stack.array.current_state = STATE_BULK_READING_LENGTH;
+                    } else if (temp_type == '+' || temp_type == ':') {
+                        // 简单类型直接去读数据直到\r然后设置对应的读取LF状态
+                        // 这里解析了一个元素，需要放入数组中，那么这里怎么知道我要放入数组了呢
+                        // 对于简单类型而言在读\n的标志中，说明读取完成，然后添加到数组中
+                        // 对于批量字符串而言，在读取数据的\n标志中读取到，说明当前批量字符串
+                        // 处理完成，同样增加到数组中
+                        // 这里两种状态可以合并到同一个判断中进行读取
+                        // 1个if多个\n判断都进去，然后再判断当前的标志是什么
+                        // 从而进一步设置下一步的标志是什么
+                        if (temp_type == '+') {
+                            c->parser_stack.array.current_type = FRAME_SIMPLE_CHAR;
+                        } else {
+                            c->parser_stack.array.current_type = FRAME_INT;
+                        }
+                        c->parser_stack.array.current_state = STATE_READING_LINE;
+                        
+                    } else {
+                        // 当前字符错误, 直接设置回退标志，并且关闭连接，后续优化可以设置错误信息到c->error_buf中
+                        c->is_back = true;
+                        close(c->fd);
+                        return -3;
+                    }
+
+                    
+                } else if (c->parser_stack.array.current_type == FRAME_INT || c->parser_stack.array.current_type == FRAME_SIMPLE_CHAR) {
+                    //* 内层在判断当前类型的状态
+                    //* 这里的缓冲区还是使用line中的缓冲区
+                    //* 这里区分类型，以便于构建数据块，虽然目前数据结构只实现了存储整形的情况
+                    //* 这里对于简单类型都是相同的state设置
+                    if (c->parser_stack.array.current_state == STATE_READING_LINE) {
+                        // 这里去line_buf中读取数据
+                        
+                    } //* 读取\n状态
+                  
+                } else if (c->parser_stack.array.current_type == FRAME_BULK) {
+
+                }
+
+                
+
+            } else if (c->parser_stack.frames.state == STATE_ARRAY_READING_ELEMENTS_INIT) {
+
+                if (c->parser_stack.array.mode == MODE_INLINE_ONLY) {
+                    // 使用静态内嵌数组，那么直接初始化一下就行
+                    // 初始化期待元素个数
+                    // 初始化当前的元素总数
+                    // c->parser_stack.array.expected_count = c->parser_stack.array.inline_count;
+                    c->parser_stack.array.total_count = 0;
+                    // 初始化数组
+                    memset(c->parser_stack.array.inline_elements, 0, sizeof(c->parser_stack.array.inline_elements));
+                    c->parser_stack.array.current_state = 
+                    
+                } else if (c->parser_stack.array.mode == MODE_HYBRID) {
+
+                    //后续补充代码,这里先实现静态的，因为这里数组元素一般不会超过255
+                    
+                }
+                c->parser_stack.frames.state = STATE_ARRAY_READING_ELEMENTS;
+                c->parser_stack.array.current_state = STATE_READING_TYPE;
+                c->parser_stack.array.current_type = FRAME_NONE;
+                
+            } else if (c->parser_stack.frames.state ==  STATE_BULK_READING_LENGTH) {
+
+            } else if (c->parser_stack.frames.state ==  STATE_BULK_READING_DATA) {
+
+            } else if (c->parser_stack.frames.state == STATE_COMPLETE) {
+
+            } else if (c->parser_stack.frames.state == STATE_EXPECTING_ARRAY_LENGTH_LF) {
+
+                // 一定要去读吗，可能line_buf中有数据还没有读完，还没有读完就不需要读取数据
+                // 当line_buf中没有数据即line_pos == expected_end的时候才需要读取
+                if (c->parser_stack.line.line_pos == c->parser_stack.line.expected_end) {
+
+                    int read_byte = 0;
+                    if (c->read_rb.Length >= 64) {
+                        read_byte = 64;
+                    } else if (c->read_rb.Length >= 32) {
+                        read_byte = 32;
+                    } else if (c->read_rb.Length >= 16) {
+                        read_byte = 16;
+                    } else if (c->read_rb.Length >= 8) {
+                        read_byte = 8;
+                    } else if (c->read_rb.Length >= 4) {
+                        read_byte = 4;
+                    } else if (c->read_rb.Length >= 2) {
+                        read_byte = 2;
+                    } else if (c->read_rb.Length >= 1) {
+                        read_byte = 1;
+                    } else {
+                        return -3;
+                    }
+                    if (expected_end > MAX_LINE_BUFFER - read_byte) {
+                        // 当前长度过长,直接断开连接
+                        // 这里再设置个标记位上层循环先判断连接是否关闭如果关闭依次返回
+                        // 返回到hook的recv然后直接退出该协程
+                        c->is_back = true;
+                        close(c->fd);
+                        return;
+                    }
+                    if (RB_Read_String(&c->read_rb, c->parser_stack.line.line_buffer + c->parser_stack.line.line_pos, read_byte) == RING_BUFFER_ERROR) {
+                        abort();
+                        exit(-21);
+                    }                   
+                    // line_pos是当前解析的位置，expected_end是当前数据的末尾
+                    expected_end += read_byte;
+                }
+
+                // 必然有数据,上面相等则读数据,不相等说明至少有1个字节
+                char temp_c = c->parser_stack.line.line_buffer[c->parser_stack.line.line_pos];
+                ++c->parser_stack.line.line_pos;
+                if (temp_c == '\n') {
+                    if (c->parser_stack.frames.state == STATE_EXPECTING_ARRAY_LENGTH_LF) {
+                        // 读取完长度，下一个就是读取数组元素
+                        c->parser_stack.frames.state = STATE_ARRAY_READING_ELEMENTS_INIT;
+                    }
+                } else {
+                    //期待\n但是却是其他字符直接关闭连接
+                    c->is_back = true;
+                    close(c->fd);
+                    return -3;
+                }
+                // 去到下一个状态，初始化元素读取状态
 
 
                 
             }
+            
         }
-        
-        
+        // 这里下面，没代码，这里弄完一个请求后状态标为解析完成一个请求，然后构造请求块给线程池
+        // 每一个else if 出来后直接去到循环到达下一个位置
         
         
         

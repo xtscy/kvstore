@@ -8,19 +8,22 @@
 #ifndef MAX_LINE_BUFFER
 #define MAX_LINE_BUFFER 1024  // 行缓冲区1KB
 #endif
-
+// ftype
 typedef enum {
     // 通用状态
     STATE_INIT,             // 初始状态
+    STATE_ARRAY_INIT,
+    STATE_READING_TYPE,
     STATE_READING_LINE,     // 读取行数据
     STATE_EXPECTING_CR,     // 期望回车
-    STATE_EXPECTING_LF,     // 期望换行
+    STATE_EXPECTING_ARRAY_LENGTH_LF,     // 期望换行
     
     // 批量字符串特定状态
     STATE_BULK_READING_LENGTH,  // 读取长度
     STATE_BULK_READING_DATA,    // 读取数据
     
     // 数组特定状态  
+    STATE_ARRAY_READING_ELEMENTS_INIT,
     STATE_ARRAY_READING_LENGTH,   // 读取数组长度
     STATE_ARRAY_READING_ELEMENTS, // 读取数组元素
     STATE_ARRAY_WAITING_ELEMENT,  // 等待下一个元素开始
@@ -34,31 +37,36 @@ typedef enum {
     // READ_LENGTH,// $有该状态
     // READ_END// 读取实际数据
 } read_state_t;
-
+//state
 typedef enum  {
     FRAME_SIMPLE,      // 简单类型（+ - :） - 需要等待CRLF
+    FRAME_INT,
+    FRAME_SIMPLE_CHAR,
     FRAME_BULK,        // 批量字符串（$） - 需要长度+数据+CRLF
     FRAME_ARRAY,       // 数组（*） - 需要多个元素
-    FRAME_ARRAY_ELEMENT // 数组元素 - 递归解析
+    FRAME_ARRAY_ELEMENT, // 数组元素
+    FRAME_NONE
 } frame_type_t;
 
 // 状态栈结构（固定大小）
 typedef struct resp_state_stack_s {
     // 栈存储（固定数组）
-    //? 用状态和当前帧类型来解析数据
+//无嵌套
     struct StackFrame {
-        uint8_t type;           // 类型: '+' '-' ':' '$' '*'
+        // uint8_t type;           // 类型: '+' '-' ':' '$' '*'
         read_state_t state;      // 状态: 等待长度/数据/CRLF等
         frame_type_t ftype;    // 当前的帧类型
         uint16_t reserved;      // 对齐
         int32_t expected_len;   // 期望长度
         int32_t received_len;   // 已接收长度
-    } frames[MAX_STACK_DEPTH];
+    } frames;
     
     // 栈指针
     int8_t top;                 // -1表示空栈，0-7表示有数据
     
-
+// 这里解析出来的数据都放在了下面的array数组指向
+// 所以这里的line_buffer就是一个全局缓冲区
+// 缓冲当前的暂存数据
     struct {
         char line_buffer[MAX_LINE_BUFFER];   // 行数据缓冲区（固定大小）
         size_t line_pos;         // 当前位置
@@ -69,7 +77,7 @@ typedef struct resp_state_stack_s {
     // char line_buffer[MAX_LINE_BUFFER];
     // uint16_t line_pos;          // 当前行位置
     // uint16_t line_cr_pos;       // CR位置（用于CRLF检测）
-
+    
     // 对于批量字符串（$）的数据累积
     struct {
         // 两种存储策略：
@@ -83,14 +91,15 @@ typedef struct resp_state_stack_s {
         size_t expected;    // 期望总大小,即批量字符串的长度
         uint8_t storage_type; // 0=内联, 1=堆/其他内存池
     } bulk;
-    
 
     
     // 数组元素存储,64以内使用栈，64以上转移数据使用堆
     // 阶段1：内联小数组(64个元素)
     // 这里先考虑栈实现
     struct {
-        void* inline_elements[64];// 存储数据的指针,这里直接在stage中申请
+        // 存储解析的字符串
+        // 这里嵌套数组也是一样
+        void* inline_elements[255];// 存储数据的指针,这里直接在stage中申请
         uint8_t inline_count;     // 内联数组中的元素数
         
         // 阶段2：动态大数组
@@ -100,8 +109,14 @@ typedef struct resp_state_stack_s {
             size_t capacity;      // 动态数组容量
         } dynamic;
         
-        // 总元素数
+        read_state_t current_state;
+        frame_type_t current_type;
+        // 这里不需要帧类型
+        // 因为都是简单类型和批量字符串
+        // 直接用当前的元素的read_state_t状态就可以全部处理
+        // 当前总元素数
         size_t total_count;
+        //? 需要读到的元素个数
         size_t expected_count;
         
         // 当前模式

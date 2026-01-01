@@ -62,10 +62,10 @@ typedef struct connection_s {
 
     ring_buffer read_rb;     // 读环形缓冲区，在该缓冲区处理包  
     read_cache_t read_cache;   // 数据缓冲区，数据最先放在read_cache
-    read_state_t state;
+    // read_state_t state;
     resp_state_stack_t parser_stack;
 
-
+    bool is_back;
 
 
     // 连接状态, 后续实现连接池
