@@ -41,6 +41,22 @@ typedef struct stage_allocator_s {
 
 // 这里对分配的内存块也进行了封装
 
+typedef struct task_deli_s {
+    stage_allocator_t *allocator;
+    int conn_fd;
+    //* 当前请求模式
+    int8_t mode;
+    //* 当前键的长度
+    uint16_t key_len;
+    //* 键的指针
+    uint8_t *pkey;
+    //* 当前值的长度
+    uint16_t val_len;
+    //* 值的指针
+    uint8_t *pval;    
+} task_deli_t;
+
+
 typedef struct block_alloc_s {
 
     uint8_t *ptr;

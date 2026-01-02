@@ -19,7 +19,7 @@ uint8_t LK_RB_Init(lock_free_ring_buffer *rb_handle, uint32_t buffer_size)
     uint64_t state = MAKE_STATE(head, tail);
     atomic_exchange_explicit(&rb_handle->state, state, memory_order_relaxed);
     //* 开辟数组空间
-    rb_handle->block_array = (block_alloc_t*)malloc(buffer_size * sizeof(block_alloc_t));
+    rb_handle->block_array = (block_alloc_t*)malloc(buffer_size * sizeof(task_deli_t));
     if (rb_handle->block_array == NULL) {
         printf("LK_RB malloc failed\n");
         return RING_BUFFER_ERROR;
@@ -67,7 +67,7 @@ uint8_t LK_RB_Delete(lock_free_ring_buffer *rb_handle, uint32_t Length)
 
 
 //* 预留空间再拷贝
-uint8_t LK_RB_Write_Block(lock_free_ring_buffer *rb_handle, block_alloc_t *input_addr, uint32_t write_Length)
+uint8_t LK_RB_Write_Block(lock_free_ring_buffer *rb_handle, task_deli_t *input_addr, uint32_t write_Length)
 {
     if (write_Length == 0) {
         return RING_BUFFER_SUCCESS ;
@@ -136,9 +136,9 @@ uint8_t LK_RB_Write_Block(lock_free_ring_buffer *rb_handle, block_alloc_t *input
         new_state = MAKE_STATE(old_head, new_tail);
     } while(!atomic_compare_exchange_weak_explicit(&rb_handle->state, &old_state, new_state, memory_order_relaxed, memory_order_relaxed));
     // 这里还没实现批处理的内存拷贝，目前只能拷贝1个
-    memcpy(&rb_handle->block_array[old_tail], input_addr, write_Length * sizeof(block_alloc_t));
-    printf("block_array->%s, block_array->%lu\n", rb_handle->block_array[old_tail].ptr,
-        rb_handle->block_array[old_tail].size);
+    memcpy(&rb_handle->block_array[old_tail], input_addr, write_Length * sizeof(task_deli_t));
+    // printf("block_array->%s, block_array->%lu\n", rb_handle->block_array[old_tail].ptr,
+    //     rb_handle->block_array[old_tail].size);
     uint64_t temp = 0;
     temp = atomic_load_explicit(&rb_handle->state, memory_order_seq_cst);
     return RING_BUFFER_SUCCESS;
@@ -146,7 +146,7 @@ uint8_t LK_RB_Write_Block(lock_free_ring_buffer *rb_handle, block_alloc_t *input
 }
 
 //* 先读取数据再CAS判断，如果成功再返回函数，否则重新读取数据，每次有1个线程返回成功
-uint8_t LK_RB_Read_Block(lock_free_ring_buffer *rb_handle, block_alloc_t *output_addr, uint32_t read_Length) {
+uint8_t LK_RB_Read_Block(lock_free_ring_buffer *rb_handle, task_deli_t *output_addr, uint32_t read_Length) {
 
     uint64_t old_state = 0, new_state = 0;
     old_state = atomic_load_explicit(&rb_handle->state, memory_order_acquire);
@@ -194,9 +194,9 @@ uint8_t LK_RB_Read_Block(lock_free_ring_buffer *rb_handle, block_alloc_t *output
         }
 
         
-        memcpy(output_addr, &rb_handle->block_array[old_head], read_Length * sizeof(block_alloc_t));
-        printf("read_block_array_block_array->%s,read_block_array_block_array->%lu\n"
-                , rb_handle->block_array[old_head].ptr,rb_handle->block_array[old_head].size);
+        memcpy(output_addr, &rb_handle->block_array[old_head], read_Length * sizeof(task_deli_t));
+        // printf("read_block_array_block_array->%s,read_block_array_block_array->%lu\n"
+        //         , rb_handle->block_array[old_head].ptr,rb_handle->block_array[old_head].size);
         new_state = MAKE_STATE(new_head, new_tail);
         
     } while (!atomic_compare_exchange_weak_explicit(&rb_handle->state, &old_state, new_state, memory_order_release, memory_order_relaxed));

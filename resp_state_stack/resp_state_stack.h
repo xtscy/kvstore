@@ -17,11 +17,13 @@ typedef enum {
     STATE_READING_LINE,     // 读取行数据
     STATE_EXPECTING_CR,     // 期望回车
     STATE_EXPECTING_ARRAY_LENGTH_LF,     // 期望换行
+    STATE_READING_LINE_LF,
     
     // 批量字符串特定状态
     STATE_BULK_READING_LENGTH,  // 读取长度
+    STATE_BULK_READING_LENGTH_LF,
     STATE_BULK_READING_DATA,    // 读取数据
-    
+    STATE_BULK_READING_DATA_LF, // 读取\n
     // 数组特定状态  
     STATE_ARRAY_READING_ELEMENTS_INIT,
     STATE_ARRAY_READING_LENGTH,   // 读取数组长度
@@ -85,8 +87,8 @@ typedef struct resp_state_stack_s {
             char inline_data[128];  // 小数据：内联存储
             char* heap_data;        // 大数据：堆存储,这里使用stage分配
         } storage;
-        read_state_t state;
-        size_t allocated;   // 已分配大小（动态存储时使用）
+        // read_state_t state;
+        // size_t allocated;   // 已分配大小（动态存储时使用）
         size_t filled;      // 已填充大小
         size_t expected;    // 期望总大小,即批量字符串的长度
         uint8_t storage_type; // 0=内联, 1=堆/其他内存池
@@ -100,7 +102,7 @@ typedef struct resp_state_stack_s {
         // 存储解析的字符串
         // 这里嵌套数组也是一样
         void* inline_elements[255];// 存储数据的指针,这里直接在stage中申请
-        uint8_t inline_count;     // 内联数组中的元素数
+        // uint8_t inline_count;     // 内联数组中的元素数
         
         // 阶段2：动态大数组
         struct {

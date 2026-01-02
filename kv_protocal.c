@@ -328,8 +328,8 @@ int Process_Protocal(connection_t *c)
                     if (c->parser_stack.line.line_pos == c->parser_stack.line.expected_end) {
                         //* 当前没有数据，从环形缓冲区中去拿
                         //* 这里调用封装的取数据的函数,并且如果该缓冲区也没有数据
-                        //* 那么返回一个负值，表示错误，然后这里判断返回值
-                        //* 直接设置回退标志和关闭连接然后return
+                        //* 如果环形缓冲区也没有，则直接return,返回到上层重新读取数据
+                     
                     }
                     // 现在肯定有数据
                     char temp_type = c->parser_stack.line.line_buffer[c->parser_stack.line.line_pos];
@@ -345,6 +345,7 @@ int Process_Protocal(connection_t *c)
                         // 批量字符串设置读取长度
                         c->parser_stack.array.current_type = FRAME_BULK;
                         c->parser_stack.array.current_state = STATE_BULK_READING_LENGTH;
+                        memset(c->parser_stack.bulk, 0, sizeof(c->parser_stack.bulk));
                     } else if (temp_type == '+' || temp_type == ':') {
                         // 简单类型直接去读数据直到\r然后设置对应的读取LF状态
                         // 这里解析了一个元素，需要放入数组中，那么这里怎么知道我要放入数组了呢
@@ -360,6 +361,7 @@ int Process_Protocal(connection_t *c)
                             c->parser_stack.array.current_type = FRAME_INT;
                         }
                         c->parser_stack.array.current_state = STATE_READING_LINE;
+
                         
                     } else {
                         // 当前字符错误, 直接设置回退标志，并且关闭连接，后续优化可以设置错误信息到c->error_buf中
@@ -370,16 +372,186 @@ int Process_Protocal(connection_t *c)
 
                     
                 } else if (c->parser_stack.array.current_type == FRAME_INT || c->parser_stack.array.current_type == FRAME_SIMPLE_CHAR) {
+                    // * 这里是对于简单类型的扩展
+                    //* 客户端对于参数都会解析成批量字符串
                     //* 内层在判断当前类型的状态
                     //* 这里的缓冲区还是使用line中的缓冲区
                     //* 这里区分类型，以便于构建数据块，虽然目前数据结构只实现了存储整形的情况
                     //* 这里对于简单类型都是相同的state设置
+                    if (c->parser_stack.line.line_pos == c->parser_stack.line.expected_end) {
+                        //* 当前没有数据，从环形缓冲区中去拿
+                        //* 这里调用封装的取数据的函数,并且如果该缓冲区也没有数据
+                        //* 如果环形缓冲区也没有，则直接return,返回到上层重新读取数据
+                     
+                    }
                     if (c->parser_stack.array.current_state == STATE_READING_LINE) {
-                        // 这里去line_buf中读取数据
+                        // 这里去line_buf中读取数据,直到读到\r
+                        while (true) {
+                            //* 这里有数据直接去区域中读取
+                            char c 
+                        }
+                    } else if (c->parser_stack.array.current_state == STATE_READING_LINE_LF) {
+                        //* 读取\n状态  
+                        //* 这里表示上一个字符已经读取到\r,这里必须是\n因为这里的类型是简单类型,非二进制安全
                         
-                    } //* 读取\n状态
-                  
+                        
+                    }
+                    
+
                 } else if (c->parser_stack.array.current_type == FRAME_BULK) {
+                    //* 同样先去保证一定有数据可读
+                    if (c->parser_stack.line.line_pos == c->parser_stack.line.expected_end) {
+
+                        int read_byte = 0;
+                        if (c->read_rb.Length >= 64) {
+                            read_byte = 64;
+                        } else if (c->read_rb.Length >= 32) {
+                            read_byte = 32;
+                        } else if (c->read_rb.Length >= 16) {
+                            read_byte = 16;
+                        } else if (c->read_rb.Length >= 8) {
+                            read_byte = 8;
+                        } else if (c->read_rb.Length >= 4) {
+                            read_byte = 4;
+                        } else if (c->read_rb.Length >= 2) {
+                            read_byte = 2;
+                        } else if (c->read_rb.Length >= 1) {
+                            read_byte = 1;
+                        } else {
+                            //* 环形队列也没有数据了，那么去到外层的缓冲区数组拿数据
+                            //* 所以这里直接return返回到上层函数
+                            return -3;
+                        }
+                        if (expected_end > MAX_LINE_BUFFER - read_byte) {
+                            // 当前长度过长,直接断开连接
+                            // 这里再设置个标记位上层循环先判断连接是否关闭如果关闭依次返回
+                            // 返回到hook的recv然后直接退出该协程
+                            c->is_back = true;
+                            close(c->fd);
+                            return;
+                        }
+                        if (RB_Read_String(&c->read_rb, c->parser_stack.line.line_buffer + c->parser_stack.line.line_pos, read_byte) == RING_BUFFER_ERROR) {
+                            abort();
+                            exit(-21);
+                        }   
+                        // line_pos是当前解析的位置，expected_end是当前数据的末尾
+                        c->parser_stack.line.expected_end += read_byte;
+                    }
+                    //* 先判断当前的批量字符串的读取状态
+                    if (c->parser_stack.array.current_state == STATE_BULK_READING_LENGTH) {
+                        //* 这里去读取到长度字符，然后累计到bulk的expected期望总大小上
+                        //* 并且如果大于128则使用动态
+                        //* 这里则是读取完整体大小后，在LENGTH_LF中来设定是内联还是动态，并且进行一定的初始化工作
+                        while (true) {
+                            if (c->parser_stack.line.line_pos == c->parser_stack.line.expected_end) {
+                                c->parser_stack.line.line_pos = c->parser_stack.line.expected_end = 0;
+                                break;
+                                //这里break到上面的读取数据，如果上面也没有数据就会回到外层
+                            }
+                            char temp_c = c->parser_stack.line.line_buffer[c->parser_stack.line.line_pos];
+                            ++c->parser_stack.line.line_pos;
+                            //* 读取长度，则字符只能是0 - 9的字符
+                            if (temp_c >= '0' && temp_c <= '9') {
+                                int16_t num = temp_c - '0';
+                                c->parser_stack.bulk.expected = c->parser_stack.bulk.expected * 10 + num;
+                                // 这里依次循环读取，直到读到\r
+                                // 这个模式在LF中来设置
+                            } else if (temp_c == '\r') {
+                                c->parser_stack.array.current_state = STATE_BULK_READING_LENGTH_LF;
+                                //当前字符是\r,设置读取\n的状态
+                                // 然后break，再重新进入下面的\n
+                                // 这里如果我\r读取到的是最后一个字符,那么初始化一下状态
+                                // 因为上面的初始化是基于没有读到\r的
+                                if (c->parser_stack.line.line_pos == c->parser_stack.line.expected_end) {
+                                    c->parser_stack.line.line_pos = c->parser_stack.line.expected_end = 0;
+                                    //重置然后break退出,从而进入到新的STATE_BULK_READING_LENGTH_LF
+                                }
+                                // 上面判断是否需要重置，重置与否都需要break
+                                break;
+                            } else {
+                                c->is_back = false;
+                                close(c->fd);
+                                return -5;
+                            }
+                        }
+                    } else if (c->parser_stack.array.current_state == STATE_BULK_READING_LENGTH_LF ||
+                        c->parser_stack.array.current_state == STATE_BULK_READING_DATA_LF) {
+                            
+                        // 对于状态的转变, 上面在进入的时候就已经保证了读取数据了
+                        // 上面的读取保证一定有数据, 这里去拿到line_pos位置的数据
+                        char temp_c = c->parser_stack.line.lien_buffer[c->parser_stack.line.line_pos];
+                        ++c->parser_stack.line.line_pos;
+                        if (c->parser_stack.line.line_pos == c->parser_stack.line.expected_end) {
+                            c->parser_stck.line.line_pos = c->parser_stack.line.expected_end = 0;
+                        }
+                        if (temp_c == '\n') {
+                            // 说明当前读取到了\n
+                            // 状态改变, 这里判断读取到的是哪个LF
+                            // 
+                            if (c->parser_stack.array.current_state == STATE_BULK_READING_LENGTH_LF) {
+                                // 这里读取完批量字符串的长度，应该去读取数据
+                                c->parser_stack.array.current_state = STATE_BULK_READING_DATA;
+                                // 这里判断当前的长度是内联还是动态
+                                if (c->parser_stack.bulk.expected > 127) {
+                                    c->parser_stack.bulk.storage_type = 1;
+                                    // 开辟空间,这里先用最简单的Malloc
+                                    c->parser_stack.bulk.storage.heap_data = (char*)malloc(c->parser_stack.bulk.expected);
+                                } else {
+                                    c->parser_stack.bulk.storage_type = 0;
+                                }
+                                c->parser_stack.filled = 0;
+                                break;
+                            } else if (c->parser_stack.array.current_state == STATE_BULK_READING_DATA_LF) {
+                                // 这里是数据读取读到了\n了
+                                // 那么这里读取到了一个完整的数据了
+                                // 那么肯定就是把当前的数据直接放到数组中，并且数组中的数据个数+1
+                                // 如果数组中的数据个数达到了预期值，说明当前的数组的元素读取完
+                                // 应该去读取下一个类型的数据.这里的类型应该是去到初始状态读取类型
+                                // 下一个数据类型未知
+                                // 这里把inline_data的数据放到inline_elements中
+                                // 这里还需要判断是内联还是动态,因为访问的成员不同
+                                // 如果还没有读取完数组元素，那么外层状态还是不变
+                                // 这里是批量字符串数据读完了,相当于是一个类型读完了，必然需要添加到数组中
+                                // 这类的批量字符串同时也需要
+                                //? 先做一个大小判断
+                                if (c->parser_stack.bulk.filled != c->parser_stack.bulk.expected) {
+                                    c->is_back = true;
+                                    close(c->fd);
+                                    return -3;
+                                }
+                                // 大小相等，数据有效,存储到数组中，判断是内联还是动态
+                                if (c->parser_stack.array.mode == MODE_INLINE_ONLY) {
+                                    // 判断当前批量字符串是内联还是动态的,0内联,1内存池
+                                    if (c->parser_stack.bulk.storage_type == 0) {
+                                        //数据存储在内联数组中
+                                        c->parser_stack.bulk.storage[c->parser_stack.bulk.filled] = '\0';
+                                        // 保存到数组中,这里还需要先去内存池中申请内存
+                                        block_alloc_t block = allocator_alloc(&global_allocator, c->parser_stack.bulk.filled + 1);
+                                        memcpy(block->ptr, c->parser_stack.bulk.storage, c->parser_stack.bulk.filled + 1);
+                                        c->parser_stack.array.inline_elements
+                                    } else if (c->parser_stack.bulk.storage_type == 1) {
+                                        c->parser_stack.bulk.storage.heap_data[c->parser_stack.bulk.filled] = '\0';
+                                    }
+                                } else if (c->parser_stack.array.mode == MODE_HYBRID) {
+
+                                }
+                                
+                                // 继续判断是否需要继续读取元素
+                                
+
+                            }
+                        } else {
+                            // 不是\n，这里直接报错
+                            c->is_back = true;
+                            close(c->fd);
+                            return -3;
+                        }
+                        
+                    } else if (c->parser_stack.array.current_state == STATE_BULK_READING_DATA) {
+
+                    } else if (c->parser_stack.array.current_state == STATE_BULK_READING_DATA_LF) {
+
+                    }
 
                 }
 
@@ -392,16 +564,13 @@ int Process_Protocal(connection_t *c)
                     // 初始化期待元素个数
                     // 初始化当前的元素总数
                     // c->parser_stack.array.expected_count = c->parser_stack.array.inline_count;
-                    c->parser_stack.array.total_count = 0;
                     // 初始化数组
                     memset(c->parser_stack.array.inline_elements, 0, sizeof(c->parser_stack.array.inline_elements));
-                    c->parser_stack.array.current_state = 
-                    
                 } else if (c->parser_stack.array.mode == MODE_HYBRID) {
-
                     //后续补充代码,这里先实现静态的，因为这里数组元素一般不会超过255
-                    
                 }
+                
+                c->parser_stack.array.total_count = 0;
                 c->parser_stack.frames.state = STATE_ARRAY_READING_ELEMENTS;
                 c->parser_stack.array.current_state = STATE_READING_TYPE;
                 c->parser_stack.array.current_type = FRAME_NONE;
@@ -455,9 +624,14 @@ int Process_Protocal(connection_t *c)
                 // 必然有数据,上面相等则读数据,不相等说明至少有1个字节
                 char temp_c = c->parser_stack.line.line_buffer[c->parser_stack.line.line_pos];
                 ++c->parser_stack.line.line_pos;
+                if (c->parser_stack.line.line_pos == c->parser_stack.line.expected_end) {
+                    c->parser_stack.line.line_pos = c->parser_stack.line.expected_end = 0;
+                }
                 if (temp_c == '\n') {
                     if (c->parser_stack.frames.state == STATE_EXPECTING_ARRAY_LENGTH_LF) {
                         // 读取完长度，下一个就是读取数组元素
+                        // 说明当前长度有效,初始化当前总大小
+                        c->parser_stack.
                         c->parser_stack.frames.state = STATE_ARRAY_READING_ELEMENTS_INIT;
                     }
                 } else {

@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "../ARENA_ALLOCATOR/stage_allocator.h"
+#include 
 
 //返回值定义
 #define RING_BUFFER_SUCCESS     0x01
@@ -36,8 +37,17 @@ typedef struct
     _Atomic(uint64_t) state;         //*低32位head， 高32位tail
     // uint32_t Length ;           //已储存的数据量
     uint32_t max_Length ;       //缓冲区最大可储存数据量
-    block_alloc_t *block_array;       //缓冲区储存数组基地址
+    task_deli_t *block_array;       //缓冲区储存数组基地址
 }lock_free_ring_buffer;
+// typedef struct
+// {
+//     //* 头指针指向数据，尾指针指向空。左闭右开
+//     //* 表示当前array的下标，每一个单位是block_alloc_t大小
+//     _Atomic(uint64_t) state;         //*低32位head， 高32位tail
+//     // uint32_t Length ;           //已储存的数据量
+//     uint32_t max_Length ;       //缓冲区最大可储存数据量
+//     block_alloc_t *block_array;       //缓冲区储存数组基地址
+// }lock_free_ring_buffer;
 // typedef struct
 // {
 //     //* 头指针指向数据，尾指针指向空。左闭右开
