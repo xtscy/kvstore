@@ -29,7 +29,6 @@ typedef struct {
     //todo 然后需要更改比较函数,这里需要保证二进制安全
     //todo 然后再去更改各个相关函数，插入的时候也需要多一个键的长度值
     //todo 这里值还是先存int,后续再来优化
-    
 } bkey_t;
 
 typedef enum btree_ite_states_e {

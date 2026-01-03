@@ -44,7 +44,7 @@ typedef struct stage_allocator_s {
 typedef struct task_deli_s {
     stage_allocator_t *allocator;
     int conn_fd;
-    //* 当前请求模式
+    //* 当前请求模式, 当前先实现这三个1 set, 2 get , 3 quit
     int8_t mode;
     //* 当前键的长度
     uint16_t key_len;

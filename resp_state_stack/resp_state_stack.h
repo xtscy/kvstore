@@ -28,11 +28,11 @@ typedef enum {
     STATE_ARRAY_READING_ELEMENTS_INIT,
     STATE_ARRAY_READING_LENGTH,   // 读取数组长度
     STATE_ARRAY_READING_ELEMENTS, // 读取数组元素
-    STATE_ARRAY_WAITING_ELEMENT,  // 等待下一个元素开始
+    // STATE_ARRAY_WAITING_ELEMENT,  // 等待下一个元素开始
     
     // 完成状态
-    STATE_COMPLETE,          // 解析完成
-    STATE_ERROR              // 解析错误
+    STATE_ARRAY_COMPLETE         // 解析完成
+    // STATE_ERROR              // 解析错误
 
     // READ_ARRAY,
     // READ_TYPE,
@@ -64,7 +64,7 @@ typedef struct resp_state_stack_s {
     } frames;
     
     // 栈指针
-    int8_t top;                 // -1表示空栈，0-7表示有数据
+    // int8_t top;                 // -1表示空栈，0-7表示有数据
     
 // 这里解析出来的数据都放在了下面的array数组指向
 // 所以这里的line_buffer就是一个全局缓冲区
@@ -101,9 +101,10 @@ typedef struct resp_state_stack_s {
     struct {
         // 存储解析的字符串
         // 这里嵌套数组也是一样
-        void* inline_elements[255];// 存储数据的指针,这里直接在stage中申请
+        // void* inline_elements[255];// 存储数据的指针,这里直接在stage中申请
+        block_alloc_t inline_elements[255];// 存储数据的指针,这里直接在stage中申请
         // uint8_t inline_count;     // 内联数组中的元素数
-        
+        // 对于数组，这里存储的类型是block_alloc_t,这里先深拷贝
         // 阶段2：动态大数组
         struct {
             void** elements;      // 动态数组

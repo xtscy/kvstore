@@ -49,10 +49,13 @@ void server_reader(void *arg) {
 	connection_t *c = (connection_t*)malloc(sizeof(connection_t));
 	memset(&c->read_cache, 0, sizeof(read_cache_t));
 	memset(&c->parser_stack, 0, sizeof(c->parser_stack));
-	c->parser_stack.top = -1;
+	// c->parser_stack.top = -1;
 	c->fd = fd.c_fd;
 	RB_Init(&c->read_rb, RING_BUF_SIZE);
 	c->is_back = false;
+	// STATE_INIT 为起始
+	c->parser_stack.frames.state = STATE_INIT;
+	c->parser_stack.frames.ftype = FRAME_NONE;
 	/* 
 	// int epoll_fd = epoll_create1(0);
 	// if (epoll_fd < 0) {
