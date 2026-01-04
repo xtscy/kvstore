@@ -207,8 +207,99 @@ int KV_SORT(char *cnt, char **target) {
         return 0;
     }
 }
- 
-int KV_SET(char *key, char *val) {
+ int KV_SET(task_deli_t *task_block) {
+
+
+    if (task_block->key_len == 0 || task_block->val_len == 0) {
+        printf("key or value unfair\n");
+        abort();
+        exit(-2);
+    }
+    // 这里向bplustree中写入数据，调用bplus接口,直接向磁盘写入
+    if (is_integer(task_block->pval)) {
+        printf("当前请求设置的是integer\n");
+        char *endptr = 0;
+        // 这里val值不超过int由传参保证
+        int value = (int)strtol(val, &endptr, 10);
+        // char *rv = 0;
+        int pos = -1;
+        // long *lp = 0;
+        // 写内存
+        void *dptr = fixed_pool_alloc(int_global_fixed_pool);
+        *((int*)dptr) = value;
+        bkey_t temp_key = {0};
+        temp_key.data_ptrs = dptr;
+        temp_key.length = task_block->key_len;
+        memcpy(temp_key.key, task_block->pkey, task_block->key_len);
+
+        // sprintf(temp_key.key, "%s", );
+        // 写入内存
+        // 写入增量文件
+        // 1 key1 value1\r\n1 key2 value2\r\n
+        // 调用封装的c接口的insert操作        
+        btree_insert(global_m_btree, &temp_key, int_global_fixed_pool);
+        if (stage == true) {
+            // 目前还没有实现从机的insert操作，后续可实现
+            // 每个从机同时连接到主机的task_port,然后把insert转发给主机
+            // 然后由主机来把请求转发给所有的从机，从机处理主机的请求
+            // 这里需要再写一个从机接收外部连接发送的命令然后转发给主机任务端口的线程
+            persister_insert(global_persister, temp_key.key, *((int*)temp_key.data_ptrs), temp_key.length);
+        }
+
+        
+        
+        // btree_insert_c(global_bplus_tree, key, value);
+        // btree_insert_c(global_bplus_tree)
+        // KV_MALLOC(long, 1, &lp);
+        // *lp = value;
+        // printf("2\n");
+        return 0;
+        // if(KV_GET(k, &pos) == 0) {
+        //     printf("当前key存在,只更改value");
+        //     if (rv != NULL) {
+        //         if(kv_free(rv) != 0) {
+        //             printf("kv_free failed\n");
+        //             exit(-1);
+        //         }
+        //     }
+            
+        //     // c->kv_array[pos].value = lp;
+        //     // c->kv_array[pos].type = TYPE_INTEGER;
+        //     return 0;
+        // }
+        //* key不存在
+        // char* sp = 0;//*sp: str_pointer
+        // printf("SET的KEY不存在");
+        // KV_MALLOC(char, strlen(k) + 1, &sp);
+        // printf("4\n");
+        // memset(sp, 0, strlen(k) + 1);
+        // printf("4\n");
+        // strcpy(sp, k);
+        // printf("sp->:%s\n", sp);
+        // for (int i = 0; i < KV_ARRAY_SIZE; i++) {
+            
+        //     if (g_kv_array[i].key == NULL) {
+        //         g_kv_array[i].key = (void*)sp;
+        //         g_kv_array[i].type = TYPE_INTEGER;
+        //         g_kv_array[i].value = lp;
+        //         printf("键值写入成功,pos: %d\n", i);
+        //         return 0;
+        //     }
+        // }
+
+        //* 给客户端发送完成信息,在上一层完成send
+    } else if (is_float(val)) {
+        printf("is_float(v)");
+    } else {
+        //* 作为普通字符串
+        printf("is_common_str");
+    }
+    //* 未写入到kv_array
+    return -1;
+
+}
+
+/*int KV_SET(char *key, char *val) {
 
 
     if (strlen(key) == 0 || strlen(val) == 0) {
@@ -295,7 +386,7 @@ int KV_SET(char *key, char *val) {
     return -1;
 
 }
-
+*/
 
 int KV_DEL(char *k) {
     printf("KV_DEL\n");

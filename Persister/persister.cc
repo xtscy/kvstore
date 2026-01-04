@@ -261,10 +261,11 @@ void persister::persiste(std::string const& key, int val, int num) noexcept {
    */
   //这里字符串拼接可以优化，目前先这样写
     std::string data;
+    // 这里 添加长度前缀
     if (num == 1) {
-     data = std::to_string(num) + " " + key + " " + std::to_string(val) + "\r\n";
+        data = std::to_string(num) + " " + key.size() + " " + key + " " + std::to_string(val) + "\r\n";
     } else if (num == 2) {
-        data = std::to_string(num) + " " + key + "\r\n";
+        data = std::to_string(num) + " " + key.size() + " " + key + "\r\n";
     }
     //? 还是使用while,而非if，尽可能的保证不向到达阈值的文件进行写入
     int loop = 0;

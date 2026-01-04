@@ -22,9 +22,11 @@ persister_handle persister_create_c(const char *path) {
 }
 
 // key,val
-bool persister_insert(persister_handle handle,const char *p_key, int val) {
+bool persister_insert(persister_handle handle,const char *p_key, int val, uint16_t len) {
     persister_wrapper *wrapper = static_cast<persister_wrapper*>(handle);
-    std::string key(p_key);
+    // std::string key(p_key);
+    std::string key;
+    key.assign(p_key, len);
     wrapper->persister->persiste(key, val);
     return true;
 }

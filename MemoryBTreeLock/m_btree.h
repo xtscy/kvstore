@@ -8,7 +8,7 @@
 #include <stdbool.h>
 #include <pthread.h>
 // #include "../memory_pool/memory_pool.h"
-#define STRING_SIZE  21
+#define STRING_SIZE  32
 
 
 #ifdef __cplusplus
@@ -24,8 +24,9 @@ typedef struct s_data_s {
 
 typedef struct {
     char key[STRING_SIZE];
+    uint16_t length;
     void *data_ptrs;
-    uint16_t length;//todo 改到这了
+    //todo 改到这了
     //todo 然后需要更改比较函数,这里需要保证二进制安全
     //todo 然后再去更改各个相关函数，插入的时候也需要多一个键的长度值
     //todo 这里值还是先存int,后续再来优化

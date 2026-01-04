@@ -33,6 +33,20 @@ void order_init(btree_node_t *node) {
     
 }
 
+int key_strcmp(bkey_t *key1, bkey_t *key2) {
+    if (key1 == NULL || key2 == NULL) {
+        perror("key null\n");
+        abort();
+    }
+
+    int ret = 0;
+    ret = memcmp(key1->key, key2->key, key1->length <= key2->length ? key1->length : key2->length);
+    if (ret == 0) {
+        return key1->length - key2->length;
+    }   
+    return ret;
+    
+}
 
 btree_iterator_t* create_iterator(btree_t *tree) {
 
@@ -221,14 +235,14 @@ btree_t* btree_create(int t) {
 }
 
 // 调用者保证叶子节点未满
-static bool insert_into_leaf(btree_node_t* node, bkey_t key, fixed_size_pool_t *pool) {
+static bool insert_into_leaf(btree_node_t* node, bkey_t *key, fixed_size_pool_t *pool) {
     // assert(node->is_leaf);
 
     //* 当值重复时，不是叶子节点但是也进行覆盖
     //* 当值不重复，必然会去到叶子节点，然后进行移动键值然后插入
     
     int insert_index = node->num_keys - 1;
-    while (insert_index >= 0 && strcmp(key.key, node->keys[insert_index].key) < 0) {
+    while (insert_index >= 0 && key_strcmp(key, node->keys[insert_index]) < 0) {
 
         // node->keys[insert_index + 1] = node->keys[insert_index];
         insert_index--;
@@ -238,18 +252,18 @@ static bool insert_into_leaf(btree_node_t* node, bkey_t key, fixed_size_pool_t *
     //     node->keys[insert_index + 1] = node->keys[insert_index];
     //     insert_index--;
     // }
-    if (node->keys[insert_index].key == key.key) {
+    if (key_strcmp(key, node->keys[insert_index]) == 0) {
         // 覆盖值
         // 还未传值，这里先把key改完
         fixed_pool_free(pool, node->keys[insert_index].data_ptrs);
-        node->keys[insert_index].data_ptrs = key.data_ptrs;
+        node->keys[insert_index].data_ptrs = key->data_ptrs;
         return true;
         
     } else {
         for (int i = node->num_keys - 1; i > insert_index; i--) {
             node->keys[i + 1] = node->keys[i];
         }
-        node->keys[insert_index + 1] = key;
+        node->keys[insert_index + 1] = *key;
         node->num_keys++;
         return true;
     }
@@ -312,7 +326,7 @@ static void split_child(btree_node_t* parent, int index, btree_node_t* left_chil
 }
 
 
-bool btree_insert(btree_t* tree, bkey_t key, fixed_size_pool_t *pool) {
+bool btree_insert(btree_t* tree, bkey_t *key, fixed_size_pool_t *pool) {
 
     // 从根节点开始，直到遍历到叶子节点
     // 在叶子节点进行insert_into_leaf，并且保证叶子节点非满
@@ -366,9 +380,9 @@ bool btree_insert(btree_t* tree, bkey_t key, fixed_size_pool_t *pool) {
         int index = 0;
         // printf("begin run\n");
         // while (index < current->num_keys && key > current->keys[index]) index++;
-        while (index < current->num_keys && strcmp(key.key, current->keys[index].key) > 0) index++;
+        while (index < current->num_keys && key_strcmp(key, &current->keys[index]) > 0) index++;
         // printf("run end\n");
-        if (strcmp(key.key, current->keys[index].key) == 0) {
+        if (key_strcmp(key, &current->keys[index]) == 0) {
             break;
         }
         //需要插入的区间的索引也是index,因为要插入的位置是当前键的左边的区间
@@ -391,7 +405,7 @@ bool btree_insert(btree_t* tree, bkey_t key, fixed_size_pool_t *pool) {
             split_child(current, index, child, t);
             // 当前节点新增子节点到当前，要插入的子节点分成2个
             // 判断要去到第一个还是第二个,大于拿上来的键则去到第二个
-            if (strcmp(key.key, current->keys[index].key) > 0) {
+            if (key_strcmp(key, &current->keys[index]) > 0) {
                 index++;
                 // printf("index ++\n");
             }

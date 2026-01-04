@@ -88,8 +88,25 @@ ssize_t ssend(int fd, const void *buf, size_t len, int flags) {
 //     }
 //     return count;
 // }                                                                                                                                                                       
+int Process_Data_Task(task_deli_t *task_block) {
+    if (block == NULL) {
+        perror("task_block null\n");
+        abort();
+    }
 
-int Process_Data_Task(block_alloc_t *block) {
+    if (task_block->mode == 1) {
+        //set
+        flag = KV_SET(task_block);
+    } else if (task_block->mode == 2) {
+        // get
+    } else if (task_block->mode == 3) {
+        //quit
+    } else {
+        return -1;
+    }
+    return 0;
+}
+/*int Process_Data_Task(block_alloc_t *block) {
     //* 拿到任务,解析任务，用if分支来判断执行哪个
     //* 这里不能使用strtok函数，为了保证线程安全，可重入函数
     //* 所以这里需要自己实现字符串分割,分割成一个一个token
@@ -358,7 +375,7 @@ int Process_Data_Task(block_alloc_t *block) {
     return 0;//* 0成功
     
 }   
-
+*/
 int token_to_order(char *buf) {
     //* 遍历数组，找到对应的
     for (unsigned long i = 0; i < sizeof(order)/sizeof(order[0]); i++) {

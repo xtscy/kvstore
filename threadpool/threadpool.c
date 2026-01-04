@@ -91,12 +91,14 @@ static void add_ms_to_time_spec(struct timespec *ts, long ms) {
 
 static void* Global_Worker_Func(void *arg) {
     global_worker_t *p_worker = (global_worker_t *)arg;
-    block_alloc_t *block = (block_alloc_t *)fixed_pool_alloc(global_fixed_pool);
+    // block_alloc_t *block = (block_alloc_t *)fixed_pool_alloc(global_fixed_pool);
+    task_deli_t *task_block = (task_deli_t*)malloc(sizeof(task_deli_t));
     // printf("Global_Worker_Func 1\n");
-    printf("run global_thread tid:%lu, thread wid:%d\n", p_worker->thread_id, p_worker->global_id);
+    // printf("run global_thread tid:%lu, thread wid:%d\n", p_worker->thread_id, p_worker->global_id);
     if (block == NULL) {
         // printf("Global_Worker_Func 2\n");
         printf("malloc failed, exit -1");
+        abort();
         exit(-1);
     }
     // printf("Global_Worker_Func 3\n");
@@ -116,13 +118,14 @@ static void* Global_Worker_Func(void *arg) {
             
             if (sem_getvalue(&g_thread_pool.sem[pos % g_thread_pool.current_queue_num], &s_val) != 0) {
                 perror("sem get value failed\n");
+                abort();
                 exit(-4);
             }
             // printf("Global_Worker_Func 7:%d\n", i);
 
             if (s_val > 0) {
                 if (sem_trywait(&g_thread_pool.sem[pos % g_thread_pool.current_queue_num]) == 0) {
-                    LK_RB_Read_Block(&g_thread_pool.global_queue[pos], block, 1);
+                    LK_RB_Read_Block(&g_thread_pool.global_queue[pos], task_block, 1);
                     if ((ret = Process_Data_Task(block)) == 0) {
                         printf("当前task处理完成\n");
                     }
@@ -225,7 +228,8 @@ void *Worker_Func(void *arg)
 
     printf("run thread tid:%lu, thread wid:%d\n", p_worker->thread_id, p_worker->worker_id);
 
-    block_alloc_t *block = (block_alloc_t *)fixed_pool_alloc(global_fixed_pool);
+    // block_alloc_t *block = (block_alloc_t *)fixed_pool_alloc(global_fixed_pool);
+    task_deli_t *task_block = (task_deli_t*)malloc(sizeof(task_deli_t));
     // block_alloc_t *block = (block_alloc_t*)malloc(sizeof(block_alloc_t) * 1);
     //* 这里可以多开几个以实现批处理,1次Read拿到多个task,目前先开1个
     //* 这里task是独属于当前线程的所以，也可以用线程特定变量，和malloc和内存池比性能如何不知道
@@ -243,17 +247,17 @@ void *Worker_Func(void *arg)
         //* 这里线程的队列中的类型是task，所以是一个task一个task的拿然后处理当前的task
         int ret = -1;
         if(sem_wait(&p_worker->sem) == 0) {
-            if (LK_RB_Read_Block(&p_worker->queue, block, 1U) == RING_BUFFER_ERROR) {
+            if (LK_RB_Read_Block(&p_worker->queue, task_block, 1U) == RING_BUFFER_ERROR) {
                 printf("LK_RB_Read_Block failed\n");
                 int sem_cur_val = 0;
-                sem_getvalue(&p_worker->sem, &sem_cur_val);
-                printf("sem val%d\n", sem_cur_val);
+                // sem_getvalue(&p_worker->sem, &sem_cur_val);
+                // printf("sem val%d\n", sem_cur_val);
                 abort();
             }
 
-            printf("worke->block->%s,worker->block->size%lu\n", block->ptr, block->size);
+            // printf("worke->block->%s,worker->block->size%lu\n", block->ptr, block->size);
             
-            if ((ret = Process_Data_Task(block)) == 0) {
+            if ((ret = Process_Data_Task(task_block)) == 0) {
                 printf("当前block处理完成\n");
             } else if (ret == -2) {
                 printf("当前token没有对应的order, 该次中的所有token全部丢弃\n");
