@@ -2,7 +2,7 @@
 #define PREDEFINED_H
 
 #include <string.h>
-
+#include <cstdlib>
 namespace bpt {
 
 /* predefined B+ info */
@@ -11,25 +11,42 @@ namespace bpt {
 /* key/value type */
 typedef int value_t;
 struct key_t {
-    char k[16];
+    char k[32];
+    uint16_t len_ = 0;
+    // key_t(const char *str = "")
+    // {
+    //     bzero(k, sizeof(k));
+    //     // std::cout << "要设置的key的长度为 :"<< strlen(str) << std::endl;
+    //     // std::cout << "要设置的key的值为 :"<< std::string(str) << std::endl;
+    //     strcpy(k, str);
+    // }
 
-    key_t(const char *str = "")
-    {
+    key_t(uint16_t len = 0, const char *str = "") {
         bzero(k, sizeof(k));
-        std::cout << "要设置的key的长度为 :"<< strlen(str) << std::endl;
-        std::cout << "要设置的key的值为 :"<< std::string(str) << std::endl;
-        strcpy(k, str);
+        len_ = len; 
+        ::memcpy(k, str, len);
     }
 
     operator bool() const {
-        return strcmp(k, "");
+        if (len_ == 0) {
+            return strcmp(k, "");
+        } else {
+            return len_;
+        }
     }
 };
 
 inline int keycmp(const key_t &a, const key_t &b) {
-    int x = strlen(a.k) - strlen(b.k);
-    return x == 0 ? strcmp(a.k, b.k) : x;
+    int ret = ::memcmp(a.k, b.k, a.len_ <= b.len_ ? a.len_ : b.len_);
+    if (ret == 0) {
+        return a.len_ - b.len_;
+    }
+    return ret;
 }
+// inline int keycmp(const key_t &a, const key_t &b) {
+//     int x = strlen(a.k) - strlen(b.k);
+//     return x == 0 ? strcmp(a.k, b.k) : x;
+// }
 
 #define OPERATOR_KEYCMP(type) \
     bool operator< (const key_t &l, const type &r) {\

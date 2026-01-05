@@ -275,7 +275,7 @@ int bplus_tree::insert(const key_t& key, value_t value)
     map(&leaf, offset);
 
     // check if we have the same key
-    if (binary_search(begin(leaf), end(leaf), key)) {
+    if (binary_search(begin(leaf), end(leaf), key) == true) {
         record_t *record = find(leaf, key);
         if (record->value != value) {
             record->value = value;
@@ -285,6 +285,8 @@ int bplus_tree::insert(const key_t& key, value_t value)
         flock(fd, LOCK_UN);
         close_file();
         _mtx.unlock();
+        abort();
+        std::cout << "value same" << std::endl;
         return 1;// 1表示值存在，修改值
         // return 0;
     }

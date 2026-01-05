@@ -1,5 +1,5 @@
-#include "bpt.h"
-#include "predefined.h"
+#include "bpt.hpp"
+#include "predefined.hpp"
 #include <iostream>
 #include <string>
 
@@ -8,25 +8,33 @@ int main() {
 
     bpt::bplus_tree *bpt = new bpt::bplus_tree("./test1.db", false);
     std::string temp = "KEY";
-    for (int i = 0; i < 1000000; i++) {
-        bpt->insert((temp + std::to_string(i)).c_str(), i);
+    for (int i = 0; i < 10; i++) {
+        std::string temp_str (temp + std::to_string(i));
+        std::cout << temp_str << "len:" << temp_str.size() << std::endl;
+        bpt::key_t temp_key(temp_str.size(), temp_str.data());
+        bpt->insert(temp_key, i);
         if (i % 1000 == 0) {
             std::cout << "data:" << i << std::endl;
         }
+        std::cout << "insert" << temp_str  << std::endl;
+        sleep(1);
     }
    
 
     int anser = 0;
-    std::string str = "KEY";
-    for (int i = 0; i < 1000000; i++) {
-        
-        int ret = bpt->search(bpt::key_t((str + std::to_string(i)).c_str()), &anser);
+    for (int i = 0; i < 10; i++) {
+        std::string temp_str (temp + std::to_string(i));
+        bpt::key_t temp_key(temp_str.size(), temp_str.data());
+        int ret = bpt->search(temp_key, &anser);
         if (ret == 0) {
-        std::cout << "search KEY" << i << ": " << anser << std::endl;
+        std::cout << "search KEY" << temp_str << ": " << anser << std::endl;
         } else {
             std::cout << "data error" << std::endl;
-            exit(-10);
+            abort();
         }
+        std::cout << "search" << temp_str << std::endl;
+        sleep(1);
+        
     }
     return 0;
 }
