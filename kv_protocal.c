@@ -8,15 +8,15 @@
 uint32_t read_to_ring(connection_t *c)
 {
     //* 缓存区会比环形缓冲区大很多。这里外层用循环，填满然后处理消息
-    printf("read_to_ring->\n");
+    // printf("read_to_ring->\n");
     // RB_Write_String(&c->read_rb, c->read_cache, copy_byte);
     // 这里如果read_rb是满，那么将会死循环
     uint32_t freesize = RB_Get_FreeSize(&c->read_rb);
     // printf("", freesize);
     uint32_t copy_byte = c->read_cache.length - c->read_cache.head < freesize ?
         c->read_cache.length - c->read_cache.head : freesize;
-    printf("read_cache.length:%u,read_cache.head:%d, read_rb freesize->%u, copy_byte:%u\n",
-        c->read_cache.length, c->read_cache.head, freesize, copy_byte);
+    // printf("read_cache.length:%u,read_cache.head:%d, read_rb freesize->%u, copy_byte:%u\n",
+        // c->read_cache.length, c->read_cache.head, freesize, copy_byte);
     RB_Write_String(&c->read_rb, (uint8_t *)(c->read_cache.cache + c->read_cache.head), copy_byte);
     c->read_cache.head += copy_byte;
     return copy_byte;
@@ -28,10 +28,10 @@ void Process_Message(connection_t *c)
 {
     while (1)
     {
-        printf("进入了Process_Message\n");
+        // printf("进入了Process_Message\n");
         if (c->read_cache.head >= c->read_cache.length)
         {
-            printf("跳到最外层\n");
+            // printf("跳到最外层\n");
             return; //* 直接return结束循环
         }
         else

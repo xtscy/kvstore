@@ -167,7 +167,7 @@ uint8_t RB_Read_String(ring_buffer *rb_handle, uint8_t *output_addr, uint32_t re
         uint32_t Read_size_a, Read_size_b ;
         if(read_Length > (rb_handle->max_Length - rb_handle->head))
         {
-            printf("RBSTRING_if\n");
+            // printf("RBSTRING_if\n");
             Read_size_a = rb_handle->max_Length - rb_handle->head ;
             Read_size_b = read_Length - Read_size_a ;
             global_output_addr_prev = rb_handle->head;
@@ -178,9 +178,9 @@ uint8_t RB_Read_String(ring_buffer *rb_handle, uint8_t *output_addr, uint32_t re
         }
         else
         {
-            printf("RBSTRINGREAD_ELSE\n");
+            // printf("RBSTRINGREAD_ELSE\n");
             Read_size_a = read_Length ;
-            printf("read_length:%d\n", read_Length);
+            // printf("read_length:%d\n", read_Length);
             memcpy(output_addr, rb_handle->array_addr + rb_handle->head, Read_size_a);
             // printf("output_addr:%u\b", output_addr);
             rb_handle->Length -= read_Length ;//记录剩余数据量

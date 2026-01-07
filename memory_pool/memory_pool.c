@@ -25,17 +25,19 @@ fixed_size_pool_t* fixed_pool_create(size_t block_data_size, size_t block_count)
     fixed_size_pool_t *pool = malloc(sizeof(fixed_size_pool_t));
     if (pool == NULL) {
         perror("fixed size pool malloc failed\n");
+        abort();
     }
     size_t block_size = block_data_size + sizeof(mem_block_t);
     size_t align_size = ALIGN(block_size);
     
     size_t total_size = align_size * block_count;
     size_t align_page_total_size = align_to_page_size(total_size);
-    printf("align_page_total_size: %lu\n", align_page_total_size);
-    printf("per_block_size: %lu, total_block_size: %lu\n", align_size, total_size);
+    // printf("align_page_total_size: %lu\n", align_page_total_size);
+    // printf("per_block_size: %lu, total_block_size: %lu\n", align_size, total_size);
     void * memory = mmap(NULL, align_page_total_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (!memory) {
         perror("memory failed\n");
+        abort();
         exit(-1);
     }
     pool->actual_mapped_size = align_page_total_size;

@@ -226,7 +226,7 @@ void *Worker_Func(void *arg)
     线程入口函数 */
     worker_t *p_worker = (worker_t *)arg;
 
-    printf("run thread tid:%lu, thread wid:%d\n", p_worker->thread_id, p_worker->worker_id);
+    // printf("run thread tid:%lu, thread wid:%d\n", p_worker->thread_id, p_worker->worker_id);
 
     // block_alloc_t *block = (block_alloc_t *)fixed_pool_alloc(global_fixed_pool);
     task_deli_t *task_block = (task_deli_t*)malloc(sizeof(task_deli_t));

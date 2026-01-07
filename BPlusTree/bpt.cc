@@ -82,15 +82,15 @@ bplus_tree::bplus_tree(const char *p, bool force_empty)
     }
 // 用w+,文件内容全部丢失,指针初始位置文件开头
     if (force_empty) {
-        std::cout << "bplus_tree 6" << std::endl;
+        // std::cout << "bplus_tree 6" << std::endl;
 
         open_file("wb+"); // truncate file
         // 空b+tree,初始化空树,设置元信息
         // create empty tree if file doesn't exist
-        std::cout << "bplus_tree 7" << std::endl;
+        // std::cout << "bplus_tree 7" << std::endl;
         
         init_from_empty();
-        std::cout << "bplus_tree 8" << std::endl;
+        // std::cout << "bplus_tree 8" << std::endl;
         // 设置成功,写入了btree元信息,起始的根节点和起始的叶子节点的信息
         close_file();
     }
@@ -779,7 +779,7 @@ void bplus_tree::node_remove(T *prev, T *node)
 void bplus_tree::init_from_empty()
 {
     // init default meta
-    std::cout << "init_from_empty() 1" << std::endl;
+    // std::cout << "init_from_empty() 1" << std::endl;
     bzero(&meta, sizeof(meta_t));
     meta.order = BP_ORDER;
     meta.value_size = sizeof(value_t);
@@ -792,9 +792,9 @@ void bplus_tree::init_from_empty()
     internal_node_t root;//默认构造n=1,以空字符节点结尾
     root.next = root.prev = root.parent = 0; 
     // alloc 内部节点，这里的root就是一个内部节点
-    std::cout << "init_from_empty() 1" << std::endl;
+    // std::cout << "init_from_empty() 1" << std::endl;
     meta.root_offset = alloc(&root);
-    std::cout << "init_from_empty() 2" << std::endl;
+    // std::cout << "init_from_empty() 2" << std::endl;
     // 这里对于根和叶子节点，这里初始化的时候都有一个起始位置
     // 因为叶子在最后一层也是链式的，所以这里init中去创建根节点和叶子节点两个的起始偏移量
     // init empty leaf
@@ -803,18 +803,18 @@ void bplus_tree::init_from_empty()
     // 让叶子指向根节点的起始偏移量位置
     leaf.parent = meta.root_offset;
     // 这里设置根节点的第一个孩子指向起始叶子的偏移量
-    std::cout << "init_from_empty() 3" << std::endl;
+    // std::cout << "init_from_empty() 3" << std::endl;
     meta.leaf_offset = root.children[0].child = alloc(&leaf);
-    std::cout << "init_from_empty() 4" << std::endl;
+    // std::cout << "init_from_empty() 4" << std::endl;
      
     // save
     // 这里内部调用fwrite把传入的对象进行写入
     unmap(&meta, OFFSET_META);
-    std::cout << "init_from_empty() 5" << std::endl;
+    // std::cout << "init_from_empty() 5" << std::endl;
     unmap(&root, meta.root_offset);
-    std::cout << "init_from_empty() 6" << std::endl;
+    // std::cout << "init_from_empty() 6" << std::endl;
     unmap(&leaf, root.children[0].child);
-    std::cout << "init_from_empty() 7" << std::endl;
+    // std::cout << "init_from_empty() 7" << std::endl;
 }
 
 }

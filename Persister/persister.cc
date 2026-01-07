@@ -1097,7 +1097,7 @@ void persister::start_cmd_quit_thread() noexcept {
         while (true) {
             std::cout << "等待输入cmd" << std::endl;
             std::getline(std::cin, input);
-            std::cout << "输入cmd完成" << std::endl;
+            // std::cout << "输入cmd完成" << std::endl;
             auto result = input <=> cmd;
             if (result == std::strong_ordering::less) {
 

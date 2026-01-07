@@ -28,7 +28,7 @@ bool allocator_out_init(allocator_out_t *o_allocator) {
     for (int i = 0; i < logic_cpu; i++) {
         temp[i].stage = stage_create(stage_size);
         if (temp[i].stage != NULL) {
-            printf("create stage %d\n", stage_size);
+            // printf("create stage %d\n", stage_size);
         } else {
             printf("create stage failed\n");
             exit(-11);

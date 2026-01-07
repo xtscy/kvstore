@@ -120,8 +120,8 @@ void server_reader(void *arg) {
 		
 		// ret = recv(fd, c.read_cache.cache, READ_CACHE_SIZE, 0);
 		if (ret > 0) {
-			printf("ret:%d\n",ret);
-			printf("c->read_rb.Length:%u\n",c->read_rb.Length);
+			// printf("ret:%d\n",ret);
+			// printf("c->read_rb.Length:%u\n",c->read_rb.Length);
 			c->read_cache.length = ret;
 			c->read_cache.head = 0;
 			Process_Message(c);//* 处理一个完整的请求后发送数据
@@ -161,10 +161,10 @@ void server(void *arg) {
 	local.sin_port = htons(port);
 	local.sin_addr.s_addr = INADDR_ANY;
 	bind(fd, (struct sockaddr*)&local, sizeof(struct sockaddr_in));
-	printf("listen before\n");
+	// printf("listen before\n");
 	listen(fd, 20);
-	printf("listen after\n");
-	printf("listen port : %d\n", port);
+	// printf("listen after\n");
+	// printf("listen port : %d\n", port);
 
 	while (!0) {
 		
@@ -455,7 +455,7 @@ void replicate(void *arg) {
 	bind(fd, (struct sockaddr*)&local, sizeof(struct sockaddr_in));
 	listen(fd, 20);
 	// 监听，然后接收连接，然后去执行同步任务
-	printf("listen master port : %d\n", port);
+	// printf("listen master port : %d\n", port);
 
 	while (!0) {
 		socklen_t len = sizeof(struct sockaddr_in);
