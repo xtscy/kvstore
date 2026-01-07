@@ -137,11 +137,12 @@ class bplus_tree {
             }
         }
         // 这里是返回std::pair
-        std::pair<std::string_view, int> operator*() {
+        std::tuple<uint16_t, std::string_view, int> operator*() {
             if (n_ < leaf_node_.n) {
-                return std::pair<std::string_view, int>(leaf_node_.children[n_].key.k, leaf_node_.children[n_].value);
+                return std::tuple<uint16_t, char*, int>(leaf_node_.children[n_].key.len_, 
+                    leaf_node_.children[n_].key.k, leaf_node_.children[n_].value);
             }
-            return {"", -1};
+            return {0, "", -1};
         }
         
         // 前置++
@@ -257,11 +258,11 @@ class bplus_tree {
     mutable int fp_level;
     void open_file(const char *mode = "rb+") const
     {
-        std::cout << "open_file begining" << ",fp_level:" << this->fp_level << std::endl;
+        // std::cout << "open_file begining" << ",fp_level:" << this->fp_level << std::endl;
         // `rb+` will make sure we can write everywhere without truncating file
         
         if (fp_level == 0) {
-            printf("open_file -> fp_level,mode:%s\n", mode);
+            // printf("open_file -> fp_level,mode:%s\n", mode);
             fp = fopen(path, mode);
             // if (fp == NULL) {
             //     printf("open_file->fp_level == 0->fp == NULL");
@@ -272,7 +273,7 @@ class bplus_tree {
             //     }
             // }
         }
-        printf("open_file ->++fp_level\n");
+        // printf("open_file ->++fp_level\n");
         
 
         ++fp_level;
@@ -286,10 +287,11 @@ class bplus_tree {
             }
         }
         if (fp_level == 0) {
-            std::cout << "fp_level is zero, call close is failed" << std::endl;
+            // std::cout << "fp_level is zero, call close is failed" << std::endl;
+            abort();
             exit(-10);
         }
-        printf("close_file ->--fp_level\n");
+        // printf("close_file ->--fp_level\n");
 
         --fp_level;
     }
@@ -332,43 +334,44 @@ class bplus_tree {
     // 成功返回0，失败返回-1
     int map(void *block, off_t offset, size_t size) const
     {
-        std::cout << "int map(void *block, off_t offset, size_t size) const 1" << std::endl;
+        // std::cout << "int map(void *block, off_t offset, size_t size) const 1" << std::endl;
         open_file();
         if (fp == nullptr) {
-            printf("open_file()->fp == nullptr->return -1\n");
+            // printf("open_file()->fp == nullptr->return -1\n");
             close_file();
+            // abort();
             return -1;
         }
-        std::cout << "int map(void *block, off_t offset, size_t size) const 2" << std::endl;
+        // std::cout << "int map(void *block, off_t offset, size_t size) const 2" << std::endl;
         fseek(fp, offset, SEEK_SET);
-        std::cout << "int map(void *block, off_t offset, size_t size) const 3" << std::endl;
+        // std::cout << "int map(void *block, off_t offset, size_t size) const 3" << std::endl;
         size_t rd = fread(block, size, 1, fp);
-        std::cout << "int map(void *block, off_t offset, size_t size) const 4" << std::endl;
+        // std::cout << "int map(void *block, off_t offset, size_t size) const 4" << std::endl;
         close_file();
-        std::cout << "int map(void *block, off_t offset, size_t size) const 5" << std::endl;
+        // std::cout << "int map(void *block, off_t offset, size_t size) const 5" << std::endl;
         return rd - 1;
     }
 
     template<class T>
     int map(T *block, off_t offset) const
     {
-        std::cout << "map(T *block, off_t offset) 1" << std::endl;
+        // std::cout << "map(T *block, off_t offset) 1" << std::endl;
         return map(block, offset, sizeof(T));
     }
 
     /* write block to disk */
     int unmap(void *block, off_t offset, size_t size) const
     {
-        std::cout << " unmap(void *block, off_t offset, size_t size) 1" << std::endl;
+        // std::cout << " unmap(void *block, off_t offset, size_t size) 1" << std::endl;
         open_file();
-        std::cout << " unmap(void *block, off_t offset, size_t size) 2" << std::endl;
+        // std::cout << " unmap(void *block, off_t offset, size_t size) 2" << std::endl;
         
         fseek(fp, offset, SEEK_SET);
-        std::cout << " unmap(void *block, off_t offset, size_t size) 3" << std::endl;
+        // std::cout << " unmap(void *block, off_t offset, size_t size) 3" << std::endl;
         size_t wd = fwrite(block, size, 1, fp);
-        std::cout << " unmap(void *block, off_t offset, size_t size) 4" << std::endl;
+        // std::cout << " unmap(void *block, off_t offset, size_t size) 4" << std::endl;
         close_file();
-        std::cout << " unmap(void *block, off_t offset, size_t size) 5" << std::endl;
+        // std::cout << " unmap(void *block, off_t offset, size_t size) 5" << std::endl;
         return wd - 1;
     }
 

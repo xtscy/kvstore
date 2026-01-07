@@ -13,7 +13,7 @@ char* order[] = {"set", "get", "del", "incr", "decr", "sort"};
 extern int slave_array[10];
 extern atomic_int slave_cnt;
 extern volatile bool stage;
-
+// volatile int send_cmd_cnt = 0;
 _Atomic(uint16_t) fd_lock[20];
 // extern kv_type_t* g_kv_array;
 
@@ -89,24 +89,254 @@ ssize_t ssend(int fd, const void *buf, size_t len, int flags) {
 //     return count;
 // }                                                                                                                                                                       
 int Process_Data_Task(task_deli_t *task_block) {
-    if (block == NULL) {
+    if (task_block == NULL) {
         perror("task_block null\n");
         abort();
     }
-
+    printf("进入Process_Data_Task\n");
     if (task_block->mode == 1) {
         //set
-        flag = KV_SET(task_block);
+        printf("当前set请求\n");
+        printf("当前set请求\n");
+        printf("当前set请求\n");
+        printf("当前set请求\n");
+        if (stage == true) {
+            int ret = KV_SET(task_block);
+            char buf[128] = {0};
+            if (ret == 0) {
+                // 发送ok
+                sprintf(buf, "+OK\r\n");
+                int sign = ssend(task_block->conn_fd, buf, 5, 0);
+                if (sign == -1 || sign == 0) {
+                    abort();
+                    return -3;
+                }
+            } else if (ret == -1) {
+                sprintf(buf, "-FALSE\r\n");
+                int sign = ssend(task_block->conn_fd, buf, 8, 0);
+                if (sign == -1 || sign == 0) {
+                    printf("set 信息发送失败\n");
+                    abort();
+                    return -3;
+                }
+            } else {
+                abort();
+            }
+            // 转发
+            int cnt = atomic_load_explicit(&slave_cnt, memory_order_acquire);
+            if (cnt > 0) {
+                printf("开始转发\n");
+                // 这里可能多个线程都去send,这里使用了内核的socket锁
+                // 实际上会串行
+                char innbuf[128] = {0};
+                int used = 0;
+                char *endptr = 0;
+                int value = (int)strtol(task_block->pval, &endptr, 10);
+                uint16_t len = task_block->key_len;
+                char buf[128] = {0};
+                sprintf(buf, "*3\r\n$3\r\nset\r\n");
+                uint16_t cpos = strlen(buf);
+                int ret = sprintf(buf + cpos, "$%d\r\n", task_block->key_len);
+                memcpy(buf + cpos + ret, task_block->pkey, len);
+                // buf + cpos + ret + len + 2
+                int ret2 = sprintf(buf + cpos + ret + len, "\r\n");
+                // buf + cpos + ret + len + ret2
+                // char val_buf[16] = {0};
+                // int vallen = sprintf(NULL, "%d", *(int*)key_val.data_ptrs);
+                int ret3 = sprintf(buf + cpos + ret + len + ret2, "$%d\r\n", task_block->val_len);
+                // buf + cpos + ret + len + ret2 + ret3
+                memcpy(buf + cpos + ret + len + ret2 + ret3, task_block->pval, task_block->val_len);
+                // int ret4 = sprintf(buf + cpos + ret + len + ret2 + ret3, "%d\r\n", value);
+                int ret4 = task_block->val_len;
+                int ret5 = sprintf(buf + cpos + ret + len + ret2 + ret3 + ret4, "\r\n");
+                // used = snprintf(buf + sizeof(int), sizeof(buf) - sizeof(int), "set %s %d", key_val.key, *(int*)key_val.data_ptrs);
+                // buf + cpos + ret + len + ret2 + ret3 + ret4
+                used =  cpos + ret + len + ret2 + ret3 + ret4 + ret5;
+                // used += snprintf(innbuf + sizeof(int), sizeof(innbuf) - sizeof(int), "set %s %s", token[cur_token + 1], token[cur_token + 2]);
+                if (used >= sizeof(buf)) {
+                    perror("发送的消息过长,exit退出\n");
+                    printf("!!!!!!!!!!!!!!!!!!!!!\n");
+                    printf("!!!!!!!!!!!!!!!!!!!!!\n");
+                    printf("!!!!!!!!!!!!!!!!!!!!!\n");
+                    abort();
+                    exit(-13);
+                }
+                // uint32_t tmp_len = htonl(strlen(innbuf + 4));
+                // memcpy(innbuf, &tmp_len, sizeof(tmp_len));
+                
+                for (int i = 0; i < cnt; i++) {
+                    ssend(slave_array[i], buf, used, 0);
+                    // printf("转发%s\n", innbuf + 4);
+                }
+                printf("转发完成\n");
+            }
+        }
     } else if (task_block->mode == 2) {
-        // get
+        // get,返回的是批量字符串, 键不存在则返回
+        //$-1\r\n, 
+
+        int val = -1;
+        int ret = KV_GET(task_block, &val);
+        if (ret == 0) {
+            //键存在，发送批量字符串$length\r\nval\r\n
+            char buf[16] = {0};
+            sprintf(buf, "%d", val);
+            char send_buf[128] = {0};
+            sprintf(send_buf, "$%ld\r\n%d\r\n", strlen(buf), val);
+            int sign = ssend(task_block->conn_fd, send_buf, strlen(send_buf), 0);
+            if (sign == -1 || sign == 0) {
+                printf("get 信息发送失败\n");
+                abort();
+                return -3;
+            }
+        } else if (ret == -1) {
+            // 发送NULL的批量字符串,$-1\r\n
+            char buf[128] = {0};
+            sprintf(buf, "$-1\r\n");
+            int sign = ssend(task_block->conn_fd, buf, strlen(buf), 0);
+            if (sign == -1 || sign == 0) {
+                printf("get 信息发送失败\n");
+                abort();
+                return -3;
+            }
+        } else {
+            printf("sign:%d\n", ret);
+            abort();
+        }
     } else if (task_block->mode == 3) {
-        //quit
+        // quit
+        // 去调用这个退出函数
+        KV_QUIT();
+    } else if (task_block->mode == 4){
+        if (stage == true) {
+            // send_cmd_cnt++;
+            // if (send_cmd_cnt == 2) {
+                // abort();
+            // }
+            // GET 命令（简化但格式正确）
+        // char server_msg[1024] = {0};
+        const char *get_cmd = 
+            "*8\r\n"                    // 8个元素（简化版）
+            "$3\r\nGET\r\n"            // 1. 命令名
+            ":2\r\n"                   // 2. arity
+            "$9\r\nreadonly\r\n"       // 3. 标志1 ← 字符串，不是数组！
+            "$4\r\nfast\r\n"           // 4. 标志2 ← 字符串，不是数组！
+            ":1\r\n:1\r\n:1\r\n"       // 5-7. 键位置
+            "$5\r\n@read\r\n"          // 8. 类别标志 ← 字符串，不是数组！
+            "$7\r\n@string\r\n"        // 9. 类别标志
+            "$5\r\n@fast\r\n";         // 10. 类别标志
+
+        // SET 命令（简化但格式正确）
+        const char *set_cmd = 
+            "*8\r\n"
+            "$3\r\nSET\r\n"
+            ":-3\r\n"
+            "$5\r\nwrite\r\n"          // ← 字符串，不是数组！
+            ":1\r\n:1\r\n:1\r\n"
+            "$6\r\n@write\r\n"         // ← 字符串，不是数组！
+            "$7\r\n@string\r\n"
+            "*0\r\n";                  // 空数组占位
+        const char *correct_command_reply = 
+    "*2\r\n"                    // 2个命令
+    "*6\r\n"                    // 第一个命令：6个元素（简化）
+    "$3\r\nGET\r\n"            // 1. 命令名
+    ":2\r\n"                   // 2. arity
+    "*2\r\n"                   // 3. 标志数组（2个标志）
+    "+readonly\r\n"           //   - readonly
+    "+fast\r\n"               //   - fast
+    ":1\r\n"                  // 4. 第一个键位置
+    ":1\r\n"                  // 5. 最后一个键位置
+    ":1\r\n"                  // 6. 步长
+    "*6\r\n"                  // 第二个命令：6个元素
+    "$3\r\nSET\r\n"           // 1. 命令名
+    ":-3\r\n"                // 2. arity
+    "*1\r\n"                 // 3. 标志数组（1个标志）
+    "+write\r\n"             //   - write
+    ":1\r\n"                 // 4. 第一个键位置
+    ":1\r\n"                 // 5. 最后一个键位置
+    ":1\r\n";                // 6. 步长
+    const char *simple_correct_reply = 
+    "*2\r\n"          // 2个命令
+    "$3\r\nGET\r\n"   // 命令1：字符串"GET"
+    "$3\r\nSET\r\n";  // 命令2：字符串"SET"
+        // 构建完整回复
+        // int written = snprintf(server_msg, 1024, 
+        //     "*2\r\n"          // 外层数组：2个命令
+        //     "%s"              // GET命令
+        //     "%s",             // SET命令
+        //     get_cmd, set_cmd);
+                    // 构建完整回复
+            // int written = snprintf(server_msg, 1024, 
+            // "*2\r\n"          // 总共2个命令
+            // "%s"              // GET 命令信息
+            // "%s",             // SET 命令信息
+            // get_command_reply, set_command_reply);
+            // Redis 8.4.0 期望的 RESP3 MAP 格式
+const char *resp3_command_reply = 
+    "%2\r\n"                    // RESP3: MAP 类型，2个键值对
+    
+    // 第一个命令：GET
+    "$3\r\nGET\r\n"            // Key: "GET"
+    "%8\r\n"                   // Value: MAP with 8 items
+    "$4\r\nname\r\n$3\r\nGET\r\n"
+    "$5\r\narity\r\n:2\r\n"
+    "$6\r\nflags\r\n*2\r\n+readonly\r\n+fast\r\n"
+    "$15\r\nfirst_key_index\r\n:1\r\n"
+    "$14\r\nlast_key_index\r\n:1\r\n"
+    "$7\r\nstep_count\r\n:1\r\n"
+    "$7\r\ncategories\r\n*3\r\n+@read\r\n+@string\r\n+@fast\r\n"
+    "$NS\r\n"                  // RESP3: Null set (placeholder)
+    
+    // 第二个命令：SET
+    "$3\r\nSET\r\n"
+    "%8\r\n"
+    "$4\r\nname\r\n$3\r\nSET\r\n"
+    "$5\r\narity\r\n:-3\r\n"
+    "$6\r\nflags\r\n*1\r\n+write\r\n"
+    "$15\r\nfirst_key_index\r\n:1\r\n"
+    "$14\r\nlast_key_index\r\n:1\r\n"
+    "$7\r\nstep_count\r\n:1\r\n"
+    "$7\r\ncategories\r\n*2\r\n+@write\r\n+@string\r\n"
+    "$NS\r\n";
+    const char *simplest_command_reply = "*0\r\n";
+            char server_msg[1024] = {0};
+            char *ptr = server_msg;
+
+            // 1. 复制外层数组头
+            // memcpy(ptr, "*2\r\n", 4);
+            // ptr += 4;
+
+            // 2. 复制 GET 命令
+            memcpy(ptr, simplest_command_reply, strlen(simplest_command_reply));
+            ptr += strlen(simplest_command_reply);
+
+// 3. 复制 SET 命令  
+            // memcpy(ptr, set_cmd, strlen(set_cmd));
+            // ptr += strlen(set_cmd);
+
+// 4. 计算总长度
+            int total_len = ptr - server_msg;
+
+// 5. 发送
+            int sign = ssend(task_block->conn_fd, server_msg, total_len, 0);
+            // int sign = ssend(task_block->conn_fd, server_msg, written, 0);
+            if (sign != total_len) {
+                abort();
+            }
+            if (sign == -1 || sign == 0) {
+                abort();
+                return -3;
+            }
+        }
     } else {
+        abort();
         return -1;
     }
     return 0;
 }
-/*int Process_Data_Task(block_alloc_t *block) {
+
+
+    /*int Process_Data_Task(block_alloc_t *block) {
     //* 拿到任务,解析任务，用if分支来判断执行哪个
     //* 这里不能使用strtok函数，为了保证线程安全，可重入函数
     //* 所以这里需要自己实现字符串分割,分割成一个一个token

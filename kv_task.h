@@ -141,13 +141,17 @@ typedef enum value_type_e value_type_t;
 // extern struct task_s;
 // typedef struct task_s task_t;
 
-extern int KV_SET(char *k, char *v);
-extern int KV_GET(char *k, int* val);
+// extern int KV_SET(char *k, char *v);
+extern int KV_SET(task_deli_t *task_block) ;
+// extern int KV_GET(char *k, int* val);
+extern int KV_GET(task_deli_t *task_block, int *val) ;
 extern int KV_DEL(char *k);
 extern int KV_INCR(char *k);
 extern int KV_DECR(char *k);
 extern int KV_SORT(char*, char**);
 // extern int Process_Task(connection_t *c);
-extern int Process_Data_Task(block_alloc_t *block);
+// extern int Process_Data_Task(block_alloc_t *block);
+extern int Process_Data_Task(task_deli_t *task_block);
 extern int token_to_order(char *buf);
+extern void KV_QUIT();
 #endif

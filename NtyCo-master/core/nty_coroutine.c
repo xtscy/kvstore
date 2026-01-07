@@ -314,6 +314,7 @@ int nty_coroutine_create(nty_coroutine **new_co, proc_coroutine func, void *arg)
 	nty_coroutine *co = calloc(1, sizeof(nty_coroutine));
 	if (co == NULL) {
 		printf("Failed to allocate memory for new coroutine\n");
+		abort();
 		return -2;
 	}
 

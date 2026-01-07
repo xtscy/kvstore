@@ -63,10 +63,9 @@ private:
     // 这里在程序开始时就去初始化该全量和增量文件
     // 如果不存在那么，赋值为-1
     void combine_flush_log();
-    void quit_func();
     void cmd_quit_thread();
 public:
-    
+    void quit_func();
     // void start_thread() noexcept;
     persister(const char* path);
     void start_combine_flush_thread() noexcept;

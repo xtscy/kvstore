@@ -23,16 +23,29 @@ persister::persister(const char* path)
     // 所以在迭代器内部直接用单线程逻辑就行
     bpt::bplus_tree::iterator ite = _btree.ite_begin();
     while (ite != _btree.ite_end()) {
-        auto [key, val] = *ite;
+        auto [length, key, val] = *ite;
         void *dptr = fixed_pool_alloc(int_global_fixed_pool);
         *((int*)dptr) = val;
         bkey_t temp_key = {0};
         temp_key.data_ptrs = dptr;
-        sprintf(temp_key.key, "%s", key.data());
-        btree_insert(global_m_btree, temp_key, int_global_fixed_pool);
+        temp_key.length = length;
+        memcpy(temp_key.key, key.data(), temp_key.length);
+        btree_insert(global_m_btree, &temp_key, int_global_fixed_pool);
         ++ite;
-
     }
+    // bpt::bplus_tree::iterator ite = _btree->ite_begin();
+    // while (ite != _btree->ite_end()) {
+    //     auto [length, key, val] = *ite;
+    //     void *dptr = fixed_pool_alloc(int_global_fixed_pool);
+    //     *((int*)dptr) = val;
+    //     bkey_t temp_key = {0};
+    //     temp_key.data_ptrs = dptr;
+    //     temp_key.length = length;
+    //     sprintf(temp_key.key, "%s", key.data());
+    //     memcpy(temp_key.key, key.data(), temp_key.length);
+    //     btree_insert(global_m_btree, temp_key, int_global_fixed_pool);
+    //     ++ite;
+    // }
     // 数据 同步完成
 
     // 再去读增量日志,如果有的话
@@ -77,6 +90,7 @@ persister::persister(const char* path)
             int current = 0;
             std::string key;
             std::string val;
+            std::string length;
             while (current < size) {
 
                 char c = addr[current++];
@@ -96,12 +110,61 @@ persister::persister(const char* path)
                         fclose(fp);
                         throw std::runtime_error("日志损坏");
                     }
-                    //key 
+
+                    // len
                     while (current < size && addr[current] != ' ') {
-                        key += addr[current++];
+                        length += addr[current++];
                     }
 
-                    //1 key1 val1\r\n2 key1\r\n
+                    if (current == size) {
+                        fclose(fp);
+                        throw std::runtime_error("日志损坏");
+                    }
+
+                    // while (current < size && addr[current] == ' ') {
+                    //     current++;
+                    // }
+                    current++;
+                    
+                    if (current == size) {
+                        fclose(fp);
+                        throw std::runtime_error("日志损坏");
+                    }
+
+                    //key
+                    int len = 0;
+                    auto [ptr1, ec1] = std::from_chars(length.data(), 
+                        length.data() + length.size(),
+                        len);
+                    // if (ec == std::errc()) {
+                        // std::cout << "转换成功: " << value << std::endl;
+                        // std::cout << "已处理字符数: " << (ptr - str.data()) << std::endl;
+                    if (ec1 == std::errc::invalid_argument) {
+                        std::cerr << "无效参数" << std::endl;
+                        throw std::runtime_error("键的长度无效 无效参数");
+                    } else if (ec1 == std::errc::result_out_of_range) {
+                        std::cerr << "超出范围" << std::endl;
+                        throw std::runtime_error("键的长度无效 超出范围");
+                    }
+                    int temp_len = len;
+                    while (current < size && temp_len > 0) {
+                        key += addr[current++];
+                        temp_len--;
+                    }
+                    
+                    if (current == size) {
+                        /**
+                         * 1 4 key1 1
+                        1 4 key2 2
+                        1 4 key3 3
+                        1 5 key11 11
+
+                         */
+                        fclose(fp);
+                        throw std::runtime_error("日志损坏");
+                    }
+                    // 1 key1_len key1 val1\r\n
+                    // //1 key1 val1\r\n2 key1\r\n
                     // skip 
                     while (current < size && addr[current] == ' ') {
                         current++;
@@ -115,8 +178,18 @@ persister::persister(const char* path)
                     while (current < size) {
                         if (addr[current] == '\r' && current + 1 < size && addr[current + 1] == '\n') {
                             current += 2;
-                            break;    
+                            break;
                         }
+                        // else {
+                        //     fclose(fp);
+                        //     /*
+                        //         1 4 key1 1
+                        //         1 4 key2 2
+                        //         1 4 key3 3
+                        //         1 5 key11 11
+                        //     */
+                        //     throw std::runtime_error("日志损坏");
+                        // }
 
                         if (current + 1 == size) {
                             fclose(fp);
@@ -125,33 +198,69 @@ persister::persister(const char* path)
                         
                         val += addr[current++];
                     }
-
+                    int c_val = 0;
+                    auto [ptr, ec] = std::from_chars(val.data(),
+                        val.data() + val.size(),
+                        c_val);
                     // key val
-                    // insert到内存结构中
+                    // insert到全量文件
+                    // _btree.insert(bpt::key_t(key.c_str()), std::stoi(val));
+                    // _btree.insert(bpt::key_t(len, key.data()), c_val);
 
                     void *dptr = fixed_pool_alloc(int_global_fixed_pool);
-                    *((int*)dptr) = std::stoi(val);
+                    *((int*)dptr) = c_val;
                     bkey_t temp_key = {0};
                     temp_key.data_ptrs = dptr;
-                    sprintf(temp_key.key, "%s", key.data());
-                    btree_insert(global_m_btree, temp_key, int_global_fixed_pool);
-
-                    
+                    temp_key.length = len;
+                    memcpy(temp_key.key, key.data(), temp_key.length);
+                    btree_insert(global_m_btree, &temp_key, int_global_fixed_pool);
                 } else if (c == '2') {
                     // get
-                    // 2 key1\r\n
-                    char prev = '\0';
-                    while (current < size) {
-                        if (addr[current] == '\n' && prev == '\r') {
-                            current++;
-                            break;
-                        }
-                        prev = addr[current++];
+                    // 2 key1_len key1\r\n
+                    std::string length;
+                    while (current < size && addr[current] == ' ') {
+                        current++;
                     }
+                    if (current == size) {
+                        fclose(fp);
+                        throw std::runtime_error("日志损坏");
+                    }
+                    
+                    // 读长度
+                    while (current < size && addr[current] != ' ') {
+                        length += addr[current++];
+                    }
+                    
+                    if (current == size) {
+                        fclose(fp);
+                        throw std::runtime_error("日志损坏");
+                    }
+                    int len = 0;
+                    auto [ptr, ec] = std::from_chars(length.data(), 
+                        length.data() + length.size(),
+                        len);
+                    if (ec == std::errc::invalid_argument) {
+                        std::cerr << "无效参数" << std::endl;
+                        throw std::runtime_error("键的长度无效 无效参数");
+                    } else if (ec == std::errc::result_out_of_range) {
+                        std::cerr << "超出范围" << std::endl;
+                        throw std::runtime_error("键的长度无效 超出范围");
+                    }
+                    current++;
+                    current += len;
+                    current += 2;
+                    // char prev = '\0';
+                    // while (current < size) {
+                    //     if (addr[current] == '\n' && prev == '\r') {
+                    //         current++;
+                    //         break;
+                    //     }
+                    //     prev = addr[current++];
+                    // }
                 } else if (c == '3') {
                     //remove
                 }
-                
+                length.clear();
             }   
             if (munmap(addr, size) == -1) {
                 perror("munmap");
@@ -217,6 +326,7 @@ persister::persister(const char* path)
 /*
 num 为当前写入的操作的数字标识
 */
+// 这里的persiste也需要更改
 void persister::persiste(std::string const& key, int val, int num) noexcept {
 
     // 使用2个原子变量 ，1个读写锁
@@ -263,9 +373,9 @@ void persister::persiste(std::string const& key, int val, int num) noexcept {
     std::string data;
     // 这里 添加长度前缀
     if (num == 1) {
-        data = std::to_string(num) + " " + key.size() + " " + key + " " + std::to_string(val) + "\r\n";
+        data = std::to_string(num) + " " + std::to_string(key.size()) + " " + key + " " + std::to_string(val) + "\r\n";
     } else if (num == 2) {
-        data = std::to_string(num) + " " + key.size() + " " + key + "\r\n";
+        data = std::to_string(num) + " " + std::to_string(key.size()) + " " + key + "\r\n";
     }
     //? 还是使用while,而非if，尽可能的保证不向到达阈值的文件进行写入
     int loop = 0;
@@ -526,7 +636,7 @@ void persister::combine_flush_log() {
     while (true) {
         std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
         auto target_time = now + std::chrono::seconds(300);
-        std::this_thread::sleep_until(target_time);    
+        std::this_thread::sleep_until(target_time);
         
         // 这里直接combine, 在close的时候调用fsync
         std::string prex_filename("incremental_");
@@ -565,10 +675,12 @@ void persister::combine_flush_log() {
                         }
 
                         // 对字符串进行解析
-                        //1 key1 val1\r\n
+                        //1 4 key1 val1\r\n
+                        //   // 1 key1 val1\r\n
                         int current = 0;
                         std::string key;
                         std::string val;
+                        std::string length;
                         while (current < size) {
 
                             char c = addr[current++];
@@ -581,19 +693,61 @@ void persister::combine_flush_log() {
 
                             if (c == '1') {
                                 // set
-                                while (current < size && addr[current] == ' ') {
+                                while ((current < size) && (addr[current] == ' ')) {
                                     current++;
                                 }
                                 if (current == size) {
                                     fclose(fp);
                                     throw std::runtime_error("日志损坏");
                                 }
-                                //key 
-                                while (current < size && addr[current] != ' ') {
-                                    key += addr[current++];
+
+                                // len
+                                while ((current < size) && (addr[current] != ' ')) {
+                                    length += addr[current++];
                                 }
 
-                                //1 key1 val1\r\n2 key1\r\n
+                                if (current == size) {
+                                    fclose(fp);
+                                    throw std::runtime_error("日志损坏");
+                                }
+
+                                // while (current < size && addr[current] == ' ') {
+                                //     current++;
+                                // }
+                                current++;
+                                
+                                if (current == size) {
+                                    fclose(fp);
+                                    throw std::runtime_error("日志损坏");
+                                }
+
+                                //key
+                                int len = 0;
+                                auto [ptr, ec] = std::from_chars(length.data(), 
+                                    length.data() + length.size(),
+                                    len);
+                                // if (ec == std::errc()) {
+                                    // std::cout << "转换成功: " << value << std::endl;
+                                    // std::cout << "已处理字符数: " << (ptr - str.data()) << std::endl;
+                                if (ec == std::errc::invalid_argument) {
+                                    std::cerr << "无效参数" << std::endl;
+                                    throw std::runtime_error("键的长度无效 无效参数");
+                                } else if (ec == std::errc::result_out_of_range) {
+                                    std::cerr << "超出范围" << std::endl;
+                                    throw std::runtime_error("键的长度无效 超出范围");
+                                }
+                                int temp_len = len;
+                                while (current < size && temp_len > 0) {
+                                    key += addr[current++];
+                                    temp_len--;
+                                }
+                                
+                                if (current == size) {
+                                    fclose(fp);
+                                    throw std::runtime_error("日志损坏");
+                                }
+                                // 1 key1_len key1 val1\r\n
+                                // //1 key1 val1\r\n2 key1\r\n
                                 // skip 
                                 while (current < size && addr[current] == ' ') {
                                     current++;
@@ -607,7 +761,10 @@ void persister::combine_flush_log() {
                                 while (current < size) {
                                     if (addr[current] == '\r' && current + 1 < size && addr[current + 1] == '\n') {
                                         current += 2;
-                                        break;    
+                                        break;
+                                    } else {
+                                        fclose(fp);
+                                        throw std::runtime_error("日志损坏");
                                     }
 
                                     if (current + 1 == size) {
@@ -617,26 +774,61 @@ void persister::combine_flush_log() {
                                     
                                     val += addr[current++];
                                 }
-
+                                int c_val = 0;
+                                auto [ptr1, ec1] = std::from_chars(val.data(),
+                                    val.data() + val.size(),
+                                    c_val);
                                 // key val
                                 // insert到全量文件
-                                _btree.insert(bpt::key_t(key.c_str()), std::stoi(val));
+                                // _btree.insert(bpt::key_t(key.c_str()), std::stoi(val));
+                                _btree.insert(bpt::key_t(len, key.data()), c_val);
                                 
                             } else if (c == '2') {
                                 // get
-                                // 2 key1\r\n
-                                char prev = '\0';
-                                while (current < size) {
-                                    if (addr[current] == '\n' && prev == '\r') {
-                                        current++;
-                                        break;
-                                    }
-                                    prev = addr[current++];
+                                // 2 key1_len key1\r\n
+                                std::string length;
+                                while (current < size && addr[current] == ' ') {
+                                    current++;
                                 }
+                                if (current == size) {
+                                    fclose(fp);
+                                    throw std::runtime_error("日志损坏");
+                                }
+                                
+                                // 读长度
+                                while (current < size && addr[current] != ' ') {
+                                    length += addr[current++];
+                                }
+                                
+                                if (current == size) {
+                                    fclose(fp);
+                                    throw std::runtime_error("日志损坏");
+                                }
+                                int len = 0;
+                                auto [ptr, ec] = std::from_chars(length.data(), 
+                                    length.data() + length.size(),
+                                    len);
+                                if (ec == std::errc::invalid_argument) {
+                                    std::cerr << "无效参数" << std::endl;
+                                    throw std::runtime_error("键的长度无效 无效参数");
+                                } else if (ec == std::errc::result_out_of_range) {
+                                    std::cerr << "超出范围" << std::endl;
+                                    throw std::runtime_error("键的长度无效 超出范围");
+                                }
+                                current++;
+                                current += len;
+                                current += 2;
+                                // char prev = '\0';
+                                // while (current < size) {
+                                //     if (addr[current] == '\n' && prev == '\r') {
+                                //         current++;
+                                //         break;
+                                //     }
+                                //     prev = addr[current++];
+                                // }
                             } else if (c == '3') {
                                 //remove
                             }
-                            
                         }   
                         if (munmap(addr, size) == -1) {
                             perror("munmap");
@@ -717,75 +909,159 @@ void persister::quit_func() {
                 int current = 0;
                 std::string key;
                 std::string val;
-                while (current < size) {
+                std::string length;
+            while (current < size) {
 
-                    char c = addr[current++];
+                char c = addr[current++];
+                if (current == size) {
+                    throw std::runtime_error("日志损坏");
+                }
+
+                key.clear();
+                val.clear();
+                length.clear();
+
+                if (c == '1') {
+                    // set
+                    while (current < size && addr[current] == ' ') {
+                        current++;
+                    }
                     if (current == size) {
+                        fclose(fp);
                         throw std::runtime_error("日志损坏");
                     }
 
-                    key.clear();
-                    val.clear();
+                    // len
+                    while ((current < size) && (addr[current] != ' ')) {
+                        length += addr[current++];
+                    }
 
-                    if (c == '1') {
-                        // set
-                        while (current < size && addr[current] == ' ') {
-                            current++;
-                        }
-                        if (current == size) {
-                            fclose(fp);
-                            throw std::runtime_error("日志损坏");
-                        }
-                        //key 
-                        while (current < size && addr[current] != ' ') {
-                            key += addr[current++];
-                        }
+                    if (current == size) {
+                        fclose(fp);
+                        throw std::runtime_error("日志损坏");
+                    }
 
-                        //1 key1 val1\r\n2 key1\r\n
-                        // skip 
-                        while (current < size && addr[current] == ' ') {
-                            current++;
-                        }
-                        if (current == size) {
-                            fclose(fp);
-                            throw std::runtime_error("日志损坏");
-                        }
-                        // char prev = '';
-                        //val
-                        while (current < size) {
-                            if (addr[current] == '\r' && current + 1 < size && addr[current + 1] == '\n') {
-                                current += 2;
-                                break;    
-                            }
+                    // while (current < size && addr[current] == ' ') {
+                    //     current++;
+                    // }
+                    current++;
+                    
+                    if (current == size) {
+                        fclose(fp);
+                        throw std::runtime_error("日志损坏");
+                    }
 
-                            if (current + 1 == size) {
-                                fclose(fp);
-                                throw std::runtime_error("日志损坏");
-                            }
-                            
-                            val += addr[current++];
-                        }
-
-                        // key val
-                        // insert到全量文件
-                        _btree.insert(bpt::key_t(key.c_str()), std::stoi(val));
-                        
-                    } else if (c == '2') {
-                        // get
-                        // 2 key1\r\n
-                        char prev = '\0';
-                        while (current < size) {
-                            if (addr[current] == '\n' && prev == '\r') {
-                                current++;
-                                break;
-                            }
-                            prev = addr[current++];
-                        }
-                    } else if (c == '3') {
-                        //remove
+                    //key
+                    int len = 0;
+                    auto [ptr, ec] = std::from_chars(length.data(), 
+                        length.data() + length.size(),
+                        len);
+                    // if (ec == std::errc()) {
+                        // std::cout << "转换成功: " << value << std::endl;
+                        // std::cout << "已处理字符数: " << (ptr - str.data()) << std::endl;
+                    if (ec == std::errc::invalid_argument) {
+                        std::cerr << "无效参数" << std::endl;
+                        throw std::runtime_error("键的长度无效 无效参数");
+                    } else if (ec == std::errc::result_out_of_range) {
+                        std::cerr << "超出范围" << std::endl;
+                        throw std::runtime_error("键的长度无效 超出范围");
+                    }
+                    int temp_len = len;
+                    while (current < size && temp_len > 0) {
+                        key += addr[current++];
+                        temp_len--;
                     }
                     
-                }   
+                    if (current == size) {
+                        fclose(fp);
+                        throw std::runtime_error("日志损坏");
+                    }
+                    // 1 key1_len key1 val1\r\n
+                    // //1 key1 val1\r\n2 key1\r\n
+                    // skip 
+                    while (current < size && addr[current] == ' ') {
+                        current++;
+                    }
+                    if (current == size) {
+                        fclose(fp);
+                        throw std::runtime_error("日志损坏");
+                    }
+                    // char prev = '';
+                    //val
+                    while (current < size) {
+                        if (addr[current] == '\r' && current + 1 < size && addr[current + 1] == '\n') {
+                            current += 2;
+                            break;
+                        }
+                        // } else {
+                        //     fclose(fp);
+                        //     throw std::runtime_error("日志损坏");
+                        // }
+
+                        if (current + 1 == size) {
+                            fclose(fp);
+                            throw std::runtime_error("日志损坏");
+                        }
+                        
+                        val += addr[current++];
+                    }
+                    int c_val = 0;
+                    auto [ptr1, ec1] = std::from_chars(val.data(),
+                        val.data() + val.size(),
+                        c_val);
+                    // key val
+                    // insert到全量文件
+                    // _btree.insert(bpt::key_t(key.c_str()), std::stoi(val));
+                    _btree.insert(bpt::key_t(len, key.data()), c_val);
+                    
+                } else if (c == '2') {
+                    // get
+                    // 2 key1_len key1\r\n
+                    std::string length;
+                    while (current < size && addr[current] == ' ') {
+                        current++;
+                    }
+                    if (current == size) {
+                        fclose(fp);
+                        throw std::runtime_error("日志损坏");
+                    }
+                    
+                    // 读长度
+                    while (current < size && addr[current] != ' ') {
+                        length += addr[current++];
+                    }
+                    
+                    if (current == size) {
+                        fclose(fp);
+                        throw std::runtime_error("日志损坏");
+                    }
+                    int len = 0;
+                    auto [ptr, ec] = std::from_chars(length.data(), 
+                        length.data() + length.size(),
+                        len);
+                    if (ec == std::errc::invalid_argument) {
+                        std::cerr << "无效参数" << std::endl;
+                        throw std::runtime_error("键的长度无效 无效参数");
+                    } else if (ec == std::errc::result_out_of_range) {
+                        std::cerr << "超出范围" << std::endl;
+                        throw std::runtime_error("键的长度无效 超出范围");
+                    }
+                    current++;
+                    current += len;
+                    current += 2;
+                    // char prev = '\0';
+                    // while (current < size) {
+                    //     if (addr[current] == '\n' && prev == '\r') {
+                    //         current++;
+                    //         break;
+                    //     }
+                    //     prev = addr[current++];
+                    // }
+                } else if (c == '3') {
+                    //remove
+                }
+
+            }   
                 if (munmap(addr, size) == -1) {
                     perror("munmap");
                     throw std::runtime_error("munmap except");

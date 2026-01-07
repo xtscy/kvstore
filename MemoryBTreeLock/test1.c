@@ -161,61 +161,153 @@ btree_t *g_tree = NULL;
 //     printf("\n-----------------------\n");
 // }
 
-#include "../memory_pool/memory_pool.h"
-#include <stdint.h>
-uint32_t num = 0;
+// #include "../memory_pool/memory_pool.h"
+// #include <stdint.h>
+// uint32_t num = 0;
 
-void  test5() {
-    int_global_fixed_pool = fixed_pool_create(4, 1000111);
-    bkey_t temp = {0};
-    g_tree = btree_create(t);
-    for (int i = 1; i <= 1000000; i++) {
-        temp.data_ptrs = fixed_pool_alloc(int_global_fixed_pool);
-        *((int*)temp.data_ptrs) = i;
-        sprintf(temp.key, "key%d", i);
-        btree_insert(g_tree, temp, int_global_fixed_pool);
-    }
-    search_result_t result = {0};
-    for (int i = 1; i <= 1000000; i++) {
-        sprintf(temp.key, "key%d", i);
-        result = btree_search(g_tree, temp);
-        if (result.found == true) {
-            printf("%s : %d || ", result.node->keys[result.index].key,
-            *((int*)result.node->keys[result.index].data_ptrs));
-            num++;
-            if (num % 10 == 0) {
-                printf("\n");
-            }
-        }
-    }
+// void  test5() {
+//     int_global_fixed_pool = fixed_pool_create(4, 1000111);
+//     bkey_t temp = {0};
+//     g_tree = btree_create(t);
+//     for (int i = 1; i <= 1000000; i++) {
+//         temp.data_ptrs = fixed_pool_alloc(int_global_fixed_pool);
+//         *((int*)temp.data_ptrs) = i;
+//         sprintf(temp.key, "key%d", i);
+//         btree_insert(g_tree, temp, int_global_fixed_pool);
+//     }
+//     search_result_t result = {0};
+//     for (int i = 1; i <= 1000000; i++) {
+//         sprintf(temp.key, "key%d", i);
+//         result = btree_search(g_tree, temp);
+//         if (result.found == true) {
+//             printf("%s : %d || ", result.node->keys[result.index].key,
+//             *((int*)result.node->keys[result.index].data_ptrs));
+//             num++;
+//             if (num % 10 == 0) {
+//                 printf("\n");
+//             }
+//         }
+//     }
 
-    for (int i = 1234; i <= 1000000; i++) {
-        sprintf(temp.key, "key%d", i);
-        btree_remove(g_tree, temp, int_global_fixed_pool);
-    }
+//     for (int i = 1234; i <= 1000000; i++) {
+//         sprintf(temp.key, "key%d", i);
+//         btree_remove(g_tree, temp, int_global_fixed_pool);
+//     }
 
-    for (int i = 1; i <= 1000000; i++) {
-        sprintf(temp.key, "key%d", i);
-        result = btree_search(g_tree, temp);
-        if (result.found == true) {
-            printf("%s : %d || ", result.node->keys[result.index].key,
-            *((int*)result.node->keys[result.index].data_ptrs));
-            num++;
-            if (num % 10 == 0) {
-                printf("\n");
-            }
-        } else {
-            // printf("%s not exist", temp.key)
-        }
-    }
+//     for (int i = 1; i <= 1000000; i++) {
+//         sprintf(temp.key, "key%d", i);
+//         result = btree_search(g_tree, temp);
+//         if (result.found == true) {
+//             printf("%s : %d || ", result.node->keys[result.index].key,
+//             *((int*)result.node->keys[result.index].data_ptrs));
+//             num++;
+//             if (num % 10 == 0) {
+//                 printf("\n");
+//             }
+//         } else {
+//             // printf("%s not exist", temp.key)
+//         }
+//     }
     
-}
+// }
 
 
+// int main() {
+//     //  test1();
+// //    test2();
+//     // test3();
+//     // test4();
+//     test5();
+// }
+
+
+
+#include "../memory_pool/memory_pool.h"
+
+#include "m_btree.h"
+int array[10000];
+int cnt = 0;
+btree_t* global_btree;
 int main() {
-    //  test1();
-//    test2();
-    // test3();
-    // test4();
-    test5();
+    int_global_fixed_pool = fixed_pool_create(4, 1000111);
+    global_btree = btree_create(512);
+    char *prefix = "key";
+    for (int i = 0; i < 1000; i++) {
+        bkey_t temp_key = {0};
+        char temp_buf[16] = {0};
+        sprintf(temp_buf + 3, "%d", i);
+        memcpy(temp_buf, prefix, 3);
+        temp_key.data_ptrs = fixed_pool_alloc(int_global_fixed_pool);
+        *((int*)temp_key.data_ptrs) = i;
+        temp_key.length = strlen(temp_buf + 3) + 3;
+        memcpy(temp_key.key, temp_buf, temp_key.length);
+        btree_insert(global_btree, &temp_key, int_global_fixed_pool);
+    }
+    //使用迭代器打印0-999的数据
+    btree_iterator_t* ite = create_iterator(global_btree);
+    for (int i = 0; i < 10000; i++) {
+        array[i] = -1;
+    }
+    // 把值存放到数组中
+    int cnt_n = 0;
+    while(ite->current->state != ITER_STATE_END) {
+        bkey_t temp_key = iterator_get(ite);
+        array[cnt++] = *(int*)temp_key.data_ptrs;
+        printf("插入值%d", *(int*)temp_key.data_ptrs);
+        cnt_n++;
+        if (cnt_n % 15 == 0) {
+            printf("\n");
+        }
+        iterator_find_next(ite);
+    }
+
+
+    printf("=========================================");
+    printf("=========================================");
+    printf("=========================================");
+    printf("=========================================");
+    printf("=========================================");
+    printf("=========================================");
+    printf("=========================================");
+    // 每次都遍历去查找值看是否有该值
+    if (cnt != 1000) {
+        abort();
+    }
+    for (int i = 0; i < cnt; i++) {
+        int sign = 0;
+        for (int j = 0; j < cnt; j++) {
+            if (array[j] == i) {
+                sign = 1;
+                break;
+            }
+        }
+        if (sign != 1) {
+            printf("当前值没找到%d", i);
+            abort();
+        } else {
+            printf("找到值%d", i);
+        }
+        // if (array[i] != i) {
+        //     printf("数据错误, 当前i:%d,值%d\n", i, array[i]);
+        //     abort();
+        // }
+    }
+    printf("数据校验完成,cnt:%d\n", cnt);
+    return 0;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

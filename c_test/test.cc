@@ -61,45 +61,47 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
-	printf("开始发送模式\n");
-    char temp_buf[16] = "1\r\n";
-	ssize_t r_sd = ssend(nfd, temp_buf, strlen(temp_buf), 0);
-	if (r_sd != strlen(temp_buf)) {
-		perror("send发送失败, exit");
-		abort();
-		exit(-14);
-	}
+	// printf("开始发送模式\n");
+    // char temp_buf[16] = "1\r\n";
+	// ssize_t r_sd = ssend(nfd, temp_buf, strlen(temp_buf), 0);
+	// if (r_sd != strlen(temp_buf)) {
+	// 	perror("send发送失败, exit");
+	// 	abort();
+	// 	exit(-14);
+	// }
     
     int begin = atoi(argv[3]);
     int end = atoi(argv[4]);
     
-    std::thread send_thread([&nfd, &begin, &end] {
-        char buf[64] = {0};
-        uint32_t len = 0;
-        int i = 0;
-        for (i = begin; i <= end; i++) {
-            memset(buf, 0, sizeof(buf));
-            int rsp = snprintf(buf + 4, sizeof(buf) - 4, "set tkey%d %d", i, i);
-            // printf("rsp:%d\n", rsp);
-            if (rsp >= sizeof(buf) - 4) {
-                throw std::runtime_error("int rsp = snprintf(buf + 4, sizeof(buf) - 4, \"set tkey%d %d\", i, i);");
-            }
-            // buf[4 + rsp] = '\0';
-            len = htonl(strlen(buf + 4));
-            memcpy(buf, &len, 4);
-            if (std::string(buf + 4) == "set tkey") {
-                // std::cout << "std::string(buf + 4) == \"set tkey\"" << std::endl;
-                throw std::runtime_error("send set tkey");
-            }
-            // std::cout << "strlen(buf) " << "strlen(buf) " <<strlen(buf) << std::endl;
-            // std::cout << "ssend behing" << std::endl;
-            ssend(nfd, buf, strlen(buf + 4) + 4, 0);
-            // std::cout << "buf:" << buf + 4 << std::endl;
-            // usleep(100000);
-        }
-        std::cout << "send_thread run end" << std::endl;
-    });
-
+    // std::thread send_thread([&nfd, &begin, &end] {
+    //     char buf[64] = {0};
+    //     uint32_t len = 0;
+    //     int i = 0;
+    //     for (i = begin; i <= end; i++) {
+    //         memset(buf, 0, sizeof(buf));
+    //         int rsp = snprintf(buf + 4, sizeof(buf) - 4, "set tkey%d %d", i, i);
+    //         // printf("rsp:%d\n", rsp);
+    //         if (rsp >= sizeof(buf) - 4) {
+    //             throw std::runtime_error("int rsp = snprintf(buf + 4, sizeof(buf) - 4, \"set tkey%d %d\", i, i);");
+    //         }
+    //         // buf[4 + rsp] = '\0';
+    //         len = htonl(strlen(buf + 4));
+    //         memcpy(buf, &len, 4);
+    //         if (std::string(buf + 4) == "set tkey") {
+    //             // std::cout << "std::string(buf + 4) == \"set tkey\"" << std::endl;
+    //             throw std::runtime_error("send set tkey");
+    //         }
+    //         // std::cout << "strlen(buf) " << "strlen(buf) " <<strlen(buf) << std::endl;
+    //         // std::cout << "ssend behing" << std::endl;
+    //         ssend(nfd, buf, strlen(buf + 4) + 4, 0);
+    //         // std::cout << "buf:" << buf + 4 << std::endl;
+    //         // usleep(100000);
+    //     }
+    //     std::cout << "send_thread run end" << std::endl;
+    // });
+    // \nkey1\r\n$
+    std::string send_msg("*3\r\n$3\r\nset\r\n$4\r\nkey1\r\n$1\r\n1\r\n");
+    ssend(nfd, send_msg.data(), send_msg.size(), 0);
     std::thread recv_thread([&nfd] {
         char recv_buf[64] = {0};
         int recv_len = 0;
@@ -111,7 +113,7 @@ int main(int argc, char* argv[]) {
             // std::cout << "recv_len: " << recv_len << std::endl;
             if (recv_len > 0) {
                 recv_buf[recv_len] = '\0';
-                std::cout << recv_buf << " " << std::endl;; 
+                std::cout << recv_buf << " " << std::endl;
             } else {
                 std::cout << "recv 0 or <0" << std::endl;
                 // throw std::runtime_error("recv 0 or <0");
@@ -170,7 +172,7 @@ int main(int argc, char* argv[]) {
         
     });
     
-    send_thread.join();
+    // send_thread.join();
     recv_thread.join();
     cmd_thread.join();
     return 0;

@@ -68,17 +68,18 @@ extern volatile bool stage;
 //*返回0找到有效key，没找到返回-1
 // 这里使用内存池，那么就没有数组访问，而是使用alloc申请块，然后放入块中
 // 这里GET某个key，也是去到内存池中查找
-int KV_GET(char *key, int* val) {
+int KV_GET(task_deli_t *task_block, int *val) {
     printf("3\n");
-    printf("GEt key:-> %s\n", key);
+    // printf("GEt key:-> %s\n", key);
     // int ret = btree_search_c(global_bplus_tree, key, val);
     bkey_t bkey = {0};
-    memcpy(bkey.key, key, strlen(key));
+    bkey.length = task_block->key_len;
+    memcpy(bkey.key, task_block->pkey, bkey.length);
     search_result_t ret = btree_search(global_m_btree, &bkey);
     if (ret.found == true) {// 从机和主机都可以get,但是只有主机需要持久化
         *val = *(int*)bkey.data_ptrs;
         if (stage == true) {
-            persister_get(global_persister, key);
+            persister_get(global_persister, task_block->key_len, task_block->pkey);
         }
         return 0;
     } else return -1;
@@ -207,6 +208,11 @@ int KV_SORT(char *cnt, char **target) {
         return 0;
     }
 }
+
+void KV_QUIT() {
+    persister_quit(global_persister);
+}
+
  int KV_SET(task_deli_t *task_block) {
 
 
@@ -220,7 +226,7 @@ int KV_SORT(char *cnt, char **target) {
         printf("当前请求设置的是integer\n");
         char *endptr = 0;
         // 这里val值不超过int由传参保证
-        int value = (int)strtol(val, &endptr, 10);
+        int value = (int)strtol(task_block->pval, &endptr, 10);
         // char *rv = 0;
         int pos = -1;
         // long *lp = 0;
@@ -243,7 +249,7 @@ int KV_SORT(char *cnt, char **target) {
             // 每个从机同时连接到主机的task_port,然后把insert转发给主机
             // 然后由主机来把请求转发给所有的从机，从机处理主机的请求
             // 这里需要再写一个从机接收外部连接发送的命令然后转发给主机任务端口的线程
-            persister_insert(global_persister, temp_key.key, *((int*)temp_key.data_ptrs), temp_key.length);
+            persister_insert(global_persister, temp_key.length, temp_key.key, *((int*)temp_key.data_ptrs));
         }
 
         
@@ -288,7 +294,7 @@ int KV_SORT(char *cnt, char **target) {
         // }
 
         //* 给客户端发送完成信息,在上一层完成send
-    } else if (is_float(val)) {
+    } else if (is_float(task_block->pval)) {
         printf("is_float(v)");
     } else {
         //* 作为普通字符串

@@ -19,7 +19,7 @@ uint8_t LK_RB_Init(lock_free_ring_buffer *rb_handle, uint32_t buffer_size)
     uint64_t state = MAKE_STATE(head, tail);
     atomic_exchange_explicit(&rb_handle->state, state, memory_order_relaxed);
     //* 开辟数组空间
-    rb_handle->block_array = (block_alloc_t*)malloc(buffer_size * sizeof(task_deli_t));
+    rb_handle->block_array = (task_deli_t*)malloc(buffer_size * sizeof(task_deli_t));
     if (rb_handle->block_array == NULL) {
         printf("LK_RB malloc failed\n");
         return RING_BUFFER_ERROR;
@@ -200,7 +200,7 @@ uint8_t LK_RB_Read_Block(lock_free_ring_buffer *rb_handle, task_deli_t *output_a
         new_state = MAKE_STATE(new_head, new_tail);
         
     } while (!atomic_compare_exchange_weak_explicit(&rb_handle->state, &old_state, new_state, memory_order_release, memory_order_relaxed));
-    if (output_addr->ptr == NULL){
+    if (output_addr->pkey == NULL){
         abort();
     }
 

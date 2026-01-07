@@ -100,6 +100,7 @@ bkey_t iterator_get(btree_iterator_t* iterator) {
 btree_iterator_t* iterator_find_next(btree_iterator_t *iterator) {
     if (iterator == NULL) {
         perror("find next ite failed\n");
+        abort();
         exit(-11);
     }
 
@@ -242,7 +243,7 @@ static bool insert_into_leaf(btree_node_t* node, bkey_t *key, fixed_size_pool_t 
     //* 当值不重复，必然会去到叶子节点，然后进行移动键值然后插入
     
     int insert_index = node->num_keys - 1;
-    while (insert_index >= 0 && key_strcmp(key, node->keys[insert_index]) < 0) {
+    while (insert_index >= 0 && key_strcmp(key, &node->keys[insert_index]) < 0) {
 
         // node->keys[insert_index + 1] = node->keys[insert_index];
         insert_index--;
@@ -252,7 +253,7 @@ static bool insert_into_leaf(btree_node_t* node, bkey_t *key, fixed_size_pool_t 
     //     node->keys[insert_index + 1] = node->keys[insert_index];
     //     insert_index--;
     // }
-    if (key_strcmp(key, node->keys[insert_index]) == 0) {
+    if (key_strcmp(key, &node->keys[insert_index]) == 0) {
         // 覆盖值
         // 还未传值，这里先把key改完
         fixed_pool_free(pool, node->keys[insert_index].data_ptrs);
@@ -481,7 +482,7 @@ search_result_t btree_search(btree_t* tree, bkey_t* key) {
 
         int index = 0;
         while (index < current->num_keys && /*current->keys[index] < key*/ strcmp(key->key, current->keys[index].key) > 0) index++;
-        if (index < current->num_keys && strcmp(key->key, current->keys[index].key) == 0) {
+        if (index < current->num_keys && key_strcmp(key, &current->keys[index]) == 0) {
             key->data_ptrs = current->keys[index].data_ptrs;
             pthread_rwlock_unlock(&tree->rwlock);
             ret.found = true;
@@ -546,7 +547,7 @@ static int find_key_idx(btree_node_t* node, bkey_t key) {
     int idx = 0;
     for (idx = 0; idx < node->num_keys; idx++) {
 
-        if (/*key <= node->keys[idx]*/ strcmp(key.key, node->keys[idx].key) <= 0) {
+        if (/*key <= node->keys[idx]*/ key_strcmp(&key, &node->keys[idx]) <= 0) {
             return idx;
         }
     }

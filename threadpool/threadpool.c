@@ -95,7 +95,7 @@ static void* Global_Worker_Func(void *arg) {
     task_deli_t *task_block = (task_deli_t*)malloc(sizeof(task_deli_t));
     // printf("Global_Worker_Func 1\n");
     // printf("run global_thread tid:%lu, thread wid:%d\n", p_worker->thread_id, p_worker->global_id);
-    if (block == NULL) {
+    if (task_block == NULL) {
         // printf("Global_Worker_Func 2\n");
         printf("malloc failed, exit -1");
         abort();
@@ -126,7 +126,7 @@ static void* Global_Worker_Func(void *arg) {
             if (s_val > 0) {
                 if (sem_trywait(&g_thread_pool.sem[pos % g_thread_pool.current_queue_num]) == 0) {
                     LK_RB_Read_Block(&g_thread_pool.global_queue[pos], task_block, 1);
-                    if ((ret = Process_Data_Task(block)) == 0) {
+                    if ((ret = Process_Data_Task(task_block)) == 0) {
                         printf("当前task处理完成\n");
                     }
                     else if (ret == -2) {
@@ -233,7 +233,7 @@ void *Worker_Func(void *arg)
     // block_alloc_t *block = (block_alloc_t*)malloc(sizeof(block_alloc_t) * 1);
     //* 这里可以多开几个以实现批处理,1次Read拿到多个task,目前先开1个
     //* 这里task是独属于当前线程的所以，也可以用线程特定变量，和malloc和内存池比性能如何不知道
-    if (block == NULL)
+    if (task_block == NULL)
     {
         printf("malloc failed, exit -1");
         abort();
@@ -263,7 +263,7 @@ void *Worker_Func(void *arg)
                 printf("当前token没有对应的order, 该次中的所有token全部丢弃\n");
                 abort();
             } else {
-                printf("其他错误\n");
+                printf("其他错误ret:%d\n", ret);
                 abort();
             }
             // allocator_deref(block->allocator);

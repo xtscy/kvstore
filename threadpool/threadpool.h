@@ -76,6 +76,8 @@ extern void* Worker_Func(void*);
 extern uint8_t Thread_Pool_Run();
 extern uint32_t Thread_Scheduler(void);
 extern thread_pool_t g_thread_pool;
-extern int Process_Data_Task(block_alloc_t *t);
+// extern int Process_Data_Task(block_alloc_t *t);
+extern int Process_Data_Task(task_deli_t *task_block);
+
 
 #endif

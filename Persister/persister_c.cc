@@ -21,22 +21,28 @@ persister_handle persister_create_c(const char *path) {
     return static_cast<persister_handle>(wrapper);    
 }
 
-// key,val
-bool persister_insert(persister_handle handle,const char *p_key, int val, uint16_t len) {
+bool persister_insert(persister_handle handle, uint16_t len, const char *p_key, int val) {
     persister_wrapper *wrapper = static_cast<persister_wrapper*>(handle);
-    // std::string key(p_key);
     std::string key;
     key.assign(p_key, len);
     wrapper->persister->persiste(key, val);
     return true;
 }
 
-bool persister_get(persister_handle handle, const char *p_key) {
+bool persister_get(persister_handle handle, uint16_t len, const char *p_key) {
     persister_wrapper *wrapper = static_cast<persister_wrapper*>(handle);
-    std::string key(p_key);
+    std::string key;
+    key.assign(p_key, len);
     wrapper->persister->persiste(key, 0, 2);
     return true;
 }
 
+bool persister_quit(persister_handle handle)  {
+    persister_wrapper *wrapper = static_cast<persister_wrapper*>(handle);
+    wrapper->persister->quit_func();
+    std::cout << "quit正常退出" << std::endl;
+    exit(0);
+    return true;
+}
 
 }

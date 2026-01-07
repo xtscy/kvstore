@@ -7,6 +7,7 @@
 
 #include <stdbool.h>
 #include <pthread.h>
+#include <stdint.h>
 // #include "../memory_pool/memory_pool.h"
 #define STRING_SIZE  32
 
@@ -89,7 +90,7 @@ extern bkey_t iterator_get(btree_iterator_t*);
 
 extern btree_t* btree_create(int);
 // tree, key
-extern bool btree_insert(btree_t*, bkey_t, fixed_size_pool_t*);
+extern bool btree_insert(btree_t*, bkey_t*, fixed_size_pool_t*);
 extern bool btree_contains(btree_t*, bkey_t);
 extern search_result_t btree_search(btree_t *, bkey_t*);
 extern bool btree_remove(btree_t*, bkey_t, fixed_size_pool_t*);

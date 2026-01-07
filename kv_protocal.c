@@ -28,6 +28,7 @@ void Process_Message(connection_t *c)
 {
     while (1)
     {
+        printf("进入了Process_Message\n");
         if (c->read_cache.head >= c->read_cache.length)
         {
             printf("跳到最外层\n");
@@ -128,13 +129,14 @@ int Process_Protocal(connection_t *c)
                 } else {
                     return -3;                    
                 }
-                if (expected_end > MAX_LINE_BUFFER - read_byte) {
+                if (c->parser_stack.line.expected_end > MAX_LINE_BUFFER - read_byte) {
                     // 当前长度过长,直接断开连接
                     // 这里再设置个标记位上层循环先判断连接是否关闭如果关闭依次返回
                     // 返回到hook的recv然后直接退出该协程
                     c->is_back = true;
                     close(c->fd);
-                    return;
+                    abort();
+                    return -3;
                 }
                 if (RB_Read_String(&c->read_rb, c->parser_stack.line.line_buffer + c->parser_stack.line.line_pos, read_byte) == RING_BUFFER_ERROR) {
                     abort();
@@ -142,10 +144,11 @@ int Process_Protocal(connection_t *c)
                 }
                 // line_pos是当前解析的位置，expected_end是当前数据的末尾
                 c->parser_stack.line.expected_end += read_byte;
+                // abort();
             }
 
             char temp_c = c->parser_stack.line.line_buffer[c->parser_stack.line.line_pos];
-            ++c->parser_stack.line.line_pos;
+            c->parser_stack.line.line_pos++;
             if (c->parser_stack.line.line_pos == c->parser_stack.line.expected_end) {
                 c->parser_stack.line.line_pos = c->parser_stack.line.expected_end = 0;
             }
@@ -169,15 +172,15 @@ int Process_Protocal(connection_t *c)
                 // 正确读取到数组状态,设置读取数组长度的状态
                 c->parser_stack.frames.ftype = FRAME_ARRAY;
                 c->parser_stack.frames.state = STATE_ARRAY_READING_LENGTH;
-                c->parser_stack.line.expected_end = 0;
-                c->parser_stack.line.line_pos = 0;
-                memset(c->parser_stack.line.line_buffer, 0, MAX_LINE_BUFFER);
-
+                // c->parser_stack.line.expected_end = 0;
+                // c->parser_stack.line.line_pos = 0;
+                // memset(c->parser_stack.line.line_buffer, 0, MAX_LINE_BUFFER);
                 memset(&c->parser_stack.array, 0, sizeof(c->parser_stack.array));
-                c->parser_stack.array.mode = MODE_INLINE_ONLY;
+                // c->parser_stack.array.mode = MODE_INLINE_ONLY;
             } else {
                 c->is_back = true;
-                close(fd);
+                close(c->fd);
+                abort();
                 return -3;
             }
 
@@ -208,20 +211,21 @@ int Process_Protocal(connection_t *c)
                 }
 
                 
-                if (expected_end > MAX_LINE_BUFFER - read_byte) {
+                if (c->parser_stack.line.expected_end > MAX_LINE_BUFFER - read_byte) {
                     // 当前长度过长,直接断开连接
                     // 这里再设置个标记位上层循环先判断连接是否关闭如果关闭依次返回
                     // 返回到hook的recv然后直接退出该协程
                     c->is_back = true;
                     close(c->fd);
-                    return;
+                    abort();
+                    return -3;
                 }
                 if (RB_Read_String(&c->read_rb, c->parser_stack.line.line_buffer + c->parser_stack.line.line_pos, read_byte) == RING_BUFFER_ERROR) {
                     abort();
                     exit(-21);
                 }                   
                 // line_pos是当前解析的位置，expected_end是当前数据的末尾
-                expected_end += read_byte;
+                c->parser_stack.line.expected_end += read_byte;
             }
             // 读到了新数据，while解析数据，这里有可能读到\r\n后面的数据
             // 这里读取到数据后必然去到下面解析
@@ -241,44 +245,45 @@ int Process_Protocal(connection_t *c)
                 }
                 
                 char cur_char = c->parser_stack.line.line_buffer[c->parser_stack.line.line_pos];
-
+                // if (cur_char == '\r') abort();
+                // abort();
+                printf("current->%c", cur_char);
                 if (cur_char >= '0' && cur_char <= '9') {
                     int cur_num = cur_char - '0';
-                    // 这里内联直接使用的是inline_count
-                    // 如果是动态那么个数存储在expected_count中
-                    if (c->parser_stack.array.mode == MODE_INLINE_ONLY) {
+                    // if (c->parser_stack.array.mode == MODE_INLINE_ONLY) {
 
-                        if (c->parser_stack.array.inline_count > 255 / 10) {
-                            // 不能除10直接转动态
-                            // 大于静态大小，去开辟动态数组，这里没有数据，因为数组元素
-                            // 永远是读取完长度后才去读取数组元素的数据
-                            c->parser_stack.array.mode = MODE_HYBRID;
-                            c->parser_stack.array.expected_count = c->parser_stack.array.inline_count;
-                            c->parser_stack.array.expected_count *= 10;
-                            c->parser_stack.array.expected_count += cur_num;
+                        // if (c->parser_stack.array.expected_count > 255 / 10) {
+                        //     // 不能除10直接转动态
+                        //     // 大于静态大小，去开辟动态数组，这里没有数据，因为数组元素
+                        //     // 永远是读取完长度后才去读取数组元素的数据
+                        //     c->parser_stack.array.mode = MODE_HYBRID;
+                        //     c->parser_stack.array.expected_count = c->parser_stack.array.expected_count;
+                        //     c->parser_stack.array.expected_count *= 10;
+                        //     c->parser_stack.array.expected_count += cur_num;
 
-                        } else {
-                            //可以除10
-                            int temp_cnt = c->parser_stack.array.inline_count * 10;
-                            if (temp_cnt > 255 - cur_num) {
-                                // 转为动态
-                                c->parser_stack.array.mode = MODE_HYBRID;
-                                // 元素数这里最大不能超过size_t
-                                c->parser_stack.array.expected_count = temp_cnt + cur_num;
-                            } else {
-                                // 静态足够
-                                // c->parser_stack.array.inline_count
-                                c->parser_stack.array.inline_count = temp_cnt + cur_num;
-                            }
+                        // } else {
+                        //     //可以除10
+                        //     int temp_cnt = c->parser_stack.array.expected_count * 10;
+                        //     if (temp_cnt > 255 - cur_num) {
+                        //         // 转为动态
+                        //         c->parser_stack.array.mode = MODE_HYBRID;
+                        //         // 元素数这里最大不能超过size_t
+                        //         c->parser_stack.array.expected_count = temp_cnt + cur_num;
+                        //     } else {
+                        //         // 静态足够
+                        //         c->parser_stack.array.expected_count = temp_cnt + cur_num;
+                        //     }
 
-                        }
-                        c->parser_stack.array.inline_count 
-                    } else {
+                        // }
+                        // c->parser_stack.array.expected_count = c->parser_stack.array.expected_count * 10 + cur_num;
+                    // } else {
                         // MODE_HYBRID
                         // 对于动态数组，直接增加计数即可
-                        c->parser_stack.array.expected_count = c->parser_stack.array.expected_count * 10 + cur_num;
-                    }
-                } else if (c == '\r') {
+                        // c->parser_stack.array.expected_count = c->parser_stack.array.expected_count * 10 + cur_num;
+                    // }
+                    c->parser_stack.array.expected_count = c->parser_stack.array.expected_count * 10 + cur_num;
+
+                } else if (cur_char == '\r') {
                     // 设置状态为期望回车\n,这里直接break
                     // if (c->parser_stack.line.line_buffer[c->parser_stack.line.expected_end - 1] == '\r') {
                     //     // 保存\r到第一个字符
@@ -294,14 +299,19 @@ int Process_Protocal(connection_t *c)
                     if (c->parser_stack.line.line_pos == c->parser_stack.line.expected_end) {
                         c->parser_stack.line.line_pos = c->parser_stack.line.expected_end = 0;
                     }
+                    // if (c->parser_stack.array.expected_count != 3) {
+                    //     abort();
+                    // }
+                    // abort();
                     break;
                 } else {
                     // 非法字符，直接错误信息设置回退，然后关闭,这里只能读到数字字符和\r
                     c->is_back = true;
                     close(c->fd);
+                    abort();
                 }
 
-                ++c->parser_stack.line.line_pos;
+                c->parser_stack.line.line_pos++;
             }
 
         } else if (c->parser_stack.frames.state == STATE_ARRAY_READING_ELEMENTS) {
@@ -357,13 +367,14 @@ int Process_Protocal(connection_t *c)
                         //* 所以这里直接return返回到上层函数
                         return -3;
                     }
-                    if (expected_end > MAX_LINE_BUFFER - read_byte) {
+                    if (c->parser_stack.line.expected_end > MAX_LINE_BUFFER - read_byte) {
                         // 当前长度过长,直接断开连接
                         // 这里再设置个标记位上层循环先判断连接是否关闭如果关闭依次返回
                         // 返回到hook的recv然后直接退出该协程
                         c->is_back = true;
                         close(c->fd);
-                        return;
+                        abort();
+                        return -3;
                     }
                     if (RB_Read_String(&c->read_rb, c->parser_stack.line.line_buffer + c->parser_stack.line.line_pos, read_byte) == RING_BUFFER_ERROR) {
                         abort();
@@ -386,7 +397,7 @@ int Process_Protocal(connection_t *c)
                     // 批量字符串设置读取长度
                     c->parser_stack.array.current_type = FRAME_BULK;
                     c->parser_stack.array.current_state = STATE_BULK_READING_LENGTH;
-                    memset(c->parser_stack.bulk, 0, sizeof(c->parser_stack.bulk));
+                    memset(&c->parser_stack.bulk, 0, sizeof(c->parser_stack.bulk));
                 } else if (temp_type == '+' || temp_type == ':') {
                     // 简单类型直接去读数据直到\r然后设置对应的读取LF状态
                     // 这里解析了一个元素，需要放入数组中，那么这里怎么知道我要放入数组了呢
@@ -464,13 +475,14 @@ int Process_Protocal(connection_t *c)
                         //* 所以这里直接return返回到上层函数
                         return -3;
                     }
-                    if (expected_end > MAX_LINE_BUFFER - read_byte) {
+                    if (c->parser_stack.line.expected_end > MAX_LINE_BUFFER - read_byte) {
                         // 当前长度过长,直接断开连接
                         // 这里再设置个标记位上层循环先判断连接是否关闭如果关闭依次返回
                         // 返回到hook的recv然后直接退出该协程
                         c->is_back = true;
                         close(c->fd);
-                        return;
+                        abort();
+                        return -3;
                     }
                     if (RB_Read_String(&c->read_rb, c->parser_stack.line.line_buffer + c->parser_stack.line.line_pos, read_byte) == RING_BUFFER_ERROR) {
                         abort();
@@ -508,11 +520,13 @@ int Process_Protocal(connection_t *c)
                                 c->parser_stack.line.line_pos = c->parser_stack.line.expected_end = 0;
                                 //重置然后break退出,从而进入到新的STATE_BULK_READING_LENGTH_LF
                             }
+                            
                             // 上面判断是否需要重置，重置与否都需要break
                             break;
                         } else {
                             c->is_back = false;
                             close(c->fd);
+                            abort();
                             return -5;
                         }
                     }
@@ -521,10 +535,10 @@ int Process_Protocal(connection_t *c)
                         
                     // 对于状态的转变, 上面在进入的时候就已经保证了读取数据了
                     // 上面的读取保证一定有数据, 这里去拿到line_pos位置的数据
-                    char temp_c = c->parser_stack.line.lien_buffer[c->parser_stack.line.line_pos];
+                    char temp_c = c->parser_stack.line.line_buffer[c->parser_stack.line.line_pos];
                     ++c->parser_stack.line.line_pos;
                     if (c->parser_stack.line.line_pos == c->parser_stack.line.expected_end) {
-                        c->parser_stck.line.line_pos = c->parser_stack.line.expected_end = 0;
+                        c->parser_stack.line.line_pos = c->parser_stack.line.expected_end = 0;
                     }
                     if (temp_c == '\n') {
                         // 说明当前读取到了\n
@@ -540,7 +554,7 @@ int Process_Protocal(connection_t *c)
                             } else {
                                 c->parser_stack.bulk.storage_type = 0;
                             }
-                            c->parser_stack.filled = 0;
+                            c->parser_stack.bulk.filled = 0;
                         } else if (c->parser_stack.array.current_state == STATE_BULK_READING_DATA_LF) {
                             // 这里是数据读取读到了\n了
                             // 那么这里读取到了一个完整的数据了
@@ -557,6 +571,7 @@ int Process_Protocal(connection_t *c)
                             if (c->parser_stack.bulk.filled != c->parser_stack.bulk.expected) {
                                 c->is_back = true;
                                 close(c->fd);
+                                abort();
                                 return -3;
                             }
                             // 大小相等，数据有效,存储到数组中，判断是内联还是动态
@@ -567,13 +582,13 @@ int Process_Protocal(connection_t *c)
                                     // c->parser_stack.bulk.storage.inline_data[c->parser_stack.bulk.filled] = '\0';
                                     // 保存到数组中,这里还需要先去内存池中申请内存
                                     block_alloc_t block = allocator_alloc(&global_allocator, c->parser_stack.bulk.filled);
-                                    memcpy(block->ptr, c->parser_stack.bulk.storage.inline_data, c->parser_stack.bulk.filled);
+                                    memcpy(block.ptr, c->parser_stack.bulk.storage.inline_data, c->parser_stack.bulk.filled);
                                     block.conn_fd = c->fd;
                                     c->parser_stack.array.inline_elements[c->parser_stack.array.total_count] = block;
                                 } else if (c->parser_stack.bulk.storage_type == 1) {
                                     // 如果是动态开辟的那么直接memcpy
                                     block_alloc_t block = allocator_alloc(&global_allocator, c->parser_stack.bulk.filled);
-                                    memcpy(block->ptr, c->parser_stack.bulk.storage.heap_data, c->parser_stack.bulk.filled);
+                                    memcpy(block.ptr, c->parser_stack.bulk.storage.heap_data, c->parser_stack.bulk.filled);
                                     // 这里还需要存储\0,这里是二进制安全的所以不需要存储\0了
                                     // 这里赋值给了数组中保存了
                                     block.conn_fd = c->fd;
@@ -601,6 +616,7 @@ int Process_Protocal(connection_t *c)
                         // 不是\n，这里直接报错
                         c->is_back = true;
                         close(c->fd);
+                        abort();
                         return -3;
                     }
                     
@@ -612,12 +628,13 @@ int Process_Protocal(connection_t *c)
                     char* p_bulk_data = NULL;
                     if (c->parser_stack.bulk.storage_type == 0) {
                         // 使用内联数组, 存储读取的字节到数组中,当读到\r时切换状态
-                        p_bulk_data = inline_data;
+                        p_bulk_data = c->parser_stack.bulk.storage.inline_data;
                     } else if (c->parser_stack.bulk.storage_type == 1) {
-                        p_bulk_data = heap_data;
+                        p_bulk_data = c->parser_stack.bulk.storage.heap_data;
                     } else {
                         c->is_back = true;
                         close(c->fd);
+                        abort();
                         return -3;
                     }
 
@@ -628,11 +645,12 @@ int Process_Protocal(connection_t *c)
                             break;
                         }
                         uint8_t temp_data = c->parser_stack.line.line_buffer[c->parser_stack.line.line_pos];
-                        ++c->parser_stack.line.line_pos;
+                        c->parser_stack.line.line_pos++;
                         if (temp_data != '\r') {
-                            p_bulk_data[c->parser_stack.bulk.filled] = c->parser_stack.line.line_buffer[c->parser_stack.line.line_pos];
+                            p_bulk_data[c->parser_stack.bulk.filled] = temp_data;
                             c->parser_stack.bulk.filled++;
                         } else if (temp_data == '\r') {
+                            // abort();
                             if (c->parser_stack.line.line_pos == c->parser_stack.line.expected_end) {
                                 c->parser_stack.line.line_pos = c->parser_stack.line.expected_end = 0;
                             }
@@ -661,9 +679,7 @@ int Process_Protocal(connection_t *c)
             c->parser_stack.array.current_state = STATE_READING_TYPE;
             c->parser_stack.array.current_type = FRAME_NONE;
             
-        } else if (c->parser_stack.frames.state ==  STATE_BULK_READING_LENGTH) {
-
-        } else if (c->parser_stack.frames.state ==  STATE_ARRAY_COMPLETE) {
+        }  else if (c->parser_stack.frames.state ==  STATE_ARRAY_COMPLETE) {
             // 说明当前数组解析完毕,先判断是使用的内联数组还是动态数组
             // 然后使用task_deli,放入线程的队列中,这里是值拷贝到环形队列中，所以这里不需要动态开辟什么数据
             // 当然后期都可以优化，这些数据传递全部使用指针传递
@@ -681,6 +697,7 @@ int Process_Protocal(connection_t *c)
                         if (c->parser_stack.array.total_count != 3) {
                             c->is_back = true;
                             close(c->fd);
+                            abort();
                             return -3;
                         }
 
@@ -698,23 +715,50 @@ int Process_Protocal(connection_t *c)
                         if (c->parser_stack.array.total_count != 2) {
                             c->is_back = true;
                             close(c->fd);
+                            abort();
                             return -3;
                         }
 
+                        task.allocator = c->parser_stack.array.inline_elements[0].allocator;
+                        task.conn_fd = c->parser_stack.array.inline_elements[0].conn_fd;
+                        task.mode = 2;
+                        task.key_len = c->parser_stack.array.inline_elements[1].size;
+                        task.pkey = c->parser_stack.array.inline_elements[1].ptr;
+                        // task.val_len = c->parser_stack.array.inline_elements[2].size;
+                        // task.pval = c->parser_stack.array.inline_elements[2].ptr;
                         
                     } else {
                         //命令错误，或者当前不支持
                         c->is_back = true;
                         close(c->fd);
+                        abort();
                         //set error msg
                         return -3;
                     }
                 } else if (c->parser_stack.array.inline_elements[0].size == 4) {
                     //quit指令
+                } else if (c->parser_stack.array.inline_elements[0].size == 7) {
+                    // COMMAND ping
+                    // +PONG\r\n
+                    if (memcmp(c->parser_stack.array.inline_elements[0].ptr, "COMMAND", 7) == 0) {
+                        
+                        task.allocator = c->parser_stack.array.inline_elements[0].allocator;
+                        task.conn_fd = c->parser_stack.array.inline_elements[0].conn_fd;
+                        task.mode = 4;
+                        task.pkey = c->parser_stack.array.inline_elements[0].ptr;
+
+
+                    } else {
+                        c->is_back = true;
+                        close(c->fd);
+                        abort();
+                        return -3;
+                    }
                 } else {
                     // 当前指令不支持
                     c->is_back = true;
                     close(c->fd);
+                    abort();
                     return -3;
                 }
                 // 这里静态和动态只有指针，不同所以可以上面定义一个指针，然后复用逻辑
@@ -814,20 +858,21 @@ int Process_Protocal(connection_t *c)
                 } else {
                     return -3;
                 }
-                if (expected_end > MAX_LINE_BUFFER - read_byte) {
+                if (c->parser_stack.line.expected_end > MAX_LINE_BUFFER - read_byte) {
                     // 当前长度过长,直接断开连接
                     // 这里再设置个标记位上层循环先判断连接是否关闭如果关闭依次返回
                     // 返回到hook的recv然后直接退出该协程
                     c->is_back = true;
                     close(c->fd);
-                    return;
+                    abort();
+                    return -3;
                 }
                 if (RB_Read_String(&c->read_rb, c->parser_stack.line.line_buffer + c->parser_stack.line.line_pos, read_byte) == RING_BUFFER_ERROR) {
                     abort();
                     exit(-21);
                 } 
                 // line_pos是当前解析的位置，expected_end是当前数据的末尾
-                expected_end += read_byte;
+                c->parser_stack.line.expected_end += read_byte;
             }
 
             // 必然有数据,上面相等则读数据,不相等说明至少有1个字节
@@ -841,11 +886,17 @@ int Process_Protocal(connection_t *c)
                     // 读取完长度，下一个就是读取数组元素
                     // 说明当前长度有效,初始化当前总大小
                     c->parser_stack.frames.state = STATE_ARRAY_READING_ELEMENTS_INIT;
+                    if (c->parser_stack.array.expected_count > 255) {
+                        c->parser_stack.array.mode = MODE_HYBRID;
+                    } else if (c->parser_stack.array.expected_count <= 255){
+                        c->parser_stack.array.mode = MODE_INLINE_ONLY;
+                    }
                 }
             } else {
                 //期待\n但是却是其他字符直接关闭连接
                 c->is_back = true;
                 close(c->fd);
+                abort();
                 return -3;
             }
             // 去到下一个状态，初始化元素读取状态

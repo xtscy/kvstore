@@ -98,6 +98,7 @@ typedef struct resp_state_stack_s {
     // 数组元素存储,64以内使用栈，64以上转移数据使用堆
     // 阶段1：内联小数组(64个元素)
     // 这里先考虑栈实现
+    // c->parser_stack.array.expected_count
     struct {
         // 存储解析的字符串
         // 这里嵌套数组也是一样

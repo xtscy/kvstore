@@ -14,7 +14,7 @@ C_SRCS = hook_tcpserver.c kv_task.c kv_func.c kv_protocal.c kvstore.c kv_reactor
 		./memory_pool/memory_pool.c \
 		./Sequence_lock/Sequence_lock.c \
 		./MemoryBTreeLock/m_btree.c
-CPP_SRCS = ./BPlusTree/bpt_c.cc ./BPlusTree/bpt.cc ./Persister/persister_c.cc ./Persister/persister.cc
+CPP_SRCS = ./BPlusTree/bpt.cc ./Persister/persister_c.cc ./Persister/persister.cc
 C_OBJS = $(C_SRCS:.c=.o)
 CPP_OBJS = $(CPP_SRCS:.cc=.o)
 TARGET = kvstore

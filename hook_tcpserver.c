@@ -50,7 +50,7 @@ void server_reader(void *arg) {
 	memset(&c->read_cache, 0, sizeof(read_cache_t));
 	memset(&c->parser_stack, 0, sizeof(c->parser_stack));
 	// c->parser_stack.top = -1;
-	c->fd = fd.c_fd;
+	c->fd = fd.peer_fd;
 	RB_Init(&c->read_rb, RING_BUF_SIZE);
 	c->is_back = false;
 	// STATE_INIT 为起始
@@ -116,7 +116,7 @@ void server_reader(void *arg) {
 		// } while(true);
 		c->read_cache.length = 0;
 		c->read_cache.head = 0;
-		ret = nty_recv(fd.peer_fd, c->read_cache.cache, READ_CACHE_SIZE, 0);
+		ret = nty_recv(c->fd, c->read_cache.cache, READ_CACHE_SIZE, 0);
 		
 		// ret = recv(fd, c.read_cache.cache, READ_CACHE_SIZE, 0);
 		if (ret > 0) {
@@ -174,33 +174,33 @@ void server(void *arg) {
 		char buffer[3] = {0};
 		int bytes_received = 0;
 		int total = 0;
-		while (true) {
-			printf("等待接收\n");
-			bytes_received = nty_recv(cli_fd->peer_fd, buffer + total, sizeof(buffer) - total, 0);
-			total += bytes_received;
-			// 作协议解析
-			// 如果不以\r\n结尾, 那么继续循环读，直到判断以\r\n结尾，那么接收了完整的数据，然后退出循环
-			if (buffer[total - 2] == '\r' 
-			&& buffer[total - 1] == '\n') {
-				break;
-			} else {
-				printf("当前字符%c%c\n", buffer[total - 2], buffer[total - 1]);
-			}
-		}
-		int choice = atoi(buffer);
-		// 主从:0/r/n 
-		// 客户端：1/r/n
-		if (choice == 0) {
-			// 主机同步连接，不需要回发
-			// 设置成-10发送时判断是否大于0
-			cli_fd->c_fd = -10;
-		} else if (choice != 1) {
-			printf("发送的模式错误\n");
-			abort();
-		} else {
-			cli_fd->c_fd = cli_fd->peer_fd;
-		}
-		
+		// while (true) {
+		// 	printf("等待接收\n");
+		// 	bytes_received = nty_recv(cli_fd->peer_fd, buffer + total, sizeof(buffer) - total, 0);
+		// 	total += bytes_received;
+		// 	// 作协议解析
+		// 	// 如果不以\r\n结尾, 那么继续循环读，直到判断以\r\n结尾，那么接收了完整的数据，然后退出循环
+		// 	if (buffer[total - 2] == '\r' 
+		// 	&& buffer[total - 1] == '\n') {
+		// 		break;
+		// 	} else {
+		// 		printf("当前字符%c%c\n", buffer[total - 2], buffer[total - 1]);
+		// 	}
+		// }
+		// int choice = atoi(buffer);
+		// // 主从:0/r/n 
+		// // 客户端：1/r/n
+		// if (choice == 0) {
+		// 	// 主机同步连接，不需要回发
+		// 	// 设置成-10发送时判断是否大于0
+		// 	cli_fd->c_fd = -10;
+		// } else if (choice != 1) {
+		// 	printf("发送的模式错误\n");
+		// 	abort();
+		// } else {
+		// 	cli_fd->c_fd = cli_fd->peer_fd;
+		// }
+		cli_fd->c_fd = cli_fd->peer_fd;
 		nty_coroutine *read_co;
 		nty_coroutine_create(&read_co, server_reader, cli_fd);
 	}
@@ -367,14 +367,14 @@ void process_master(void *arg) {
 	// 去指向每一个数据
 //! 这里的迭代器遍历不是安全的，这里先只连接一个，如果是多个的话，应该用锁保护
 //! 并且这里遍历的时候相当于是读操作了对于
-	printf("开始发送模式\n");
-    char temp_buf[16] = "0\r\n";
-	ssize_t r_sd = nty_send(slave_fd, temp_buf, strlen(temp_buf), 0);
-	if (r_sd != strlen(temp_buf)) {
-		perror("send发送失败, exit");
-		abort();
-		exit(-14);
-	}
+	// printf("开始发送模式\n");
+    // char temp_buf[16] = "0\r\n";
+	// ssize_t r_sd = nty_send(slave_fd, temp_buf, strlen(temp_buf), 0);
+	// if (r_sd != strlen(temp_buf)) {
+	// 	perror("send发送失败, exit");
+	// 	abort();
+	// 	exit(-14);
+	// }
 	pthread_rwlock_wrlock(&global_m_btree->rwlock);
 	printf("锁定内存的b树成功，用迭代器遍历构造请求包发送给从机\n");
 	btree_iterator_t *iterator = create_iterator(global_m_btree);
@@ -385,9 +385,26 @@ void process_master(void *arg) {
 	// [lenth]set key val[lenth]set key val
 	while (iterator->current->state != ITER_STATE_END) {
 		bkey_t key_val = iterator_get(iterator);
-		printf("获取内存的b树的键值,key:%s,val:%d\n", key_val.key, *(int*)key_val.data_ptrs);
-		
-		used = snprintf(buf + sizeof(int), sizeof(buf) - sizeof(int), "set %s %d", key_val.key, *(int*)key_val.data_ptrs);
+		// printf("获取内存的b树的键值,key:%s,val:%d\n", key_val.key, *(int*)key_val.data_ptrs);
+		// send resp
+		// set: *3\r\n$3\r\nset\r\n$key_len\r\nkey\r\n$val_len\r\nval\r\n
+		uint16_t len = key_val.length;
+		char buf[128] = {0};
+		sprintf(buf, "*3\r\n$3\r\nset\r\n");
+		uint16_t cpos = strlen(buf);
+		int ret = sprintf(buf + cpos, "$%d\r\n", key_val.length);
+		memcpy(buf + cpos + ret, key_val.key, len);
+		// buf + cpos + ret + len + 2
+		int ret2 = sprintf(buf + cpos + ret + len, "\r\n");
+		// buf + cpos + ret + len + ret2
+		// char val_buf[16] = {0};
+		int vallen = snprintf(NULL, 0, "%d", *(int*)key_val.data_ptrs);
+		int ret3 = sprintf(buf + cpos + ret + len + ret2, "$%d\r\n", vallen);
+		// buf + cpos + ret + len + ret2 + ret3
+		int ret4 = sprintf(buf + cpos + ret + len + ret2 + ret3, "%d\r\n", *(int*)key_val.data_ptrs);
+		// used = snprintf(buf + sizeof(int), sizeof(buf) - sizeof(int), "set %s %d", key_val.key, *(int*)key_val.data_ptrs);
+		// buf + cpos + ret + len + ret2 + ret3 + ret4
+		used =  cpos + ret + len + ret2 + ret3 + ret4;
 		if (used >= sizeof(buf) - sizeof(int)) {
 			perror("发送的消息过长,exit退出\n");
 			printf("!!!!!!!!!!!!!!!!!!!!!\n");
@@ -396,10 +413,10 @@ void process_master(void *arg) {
 			abort();
 			exit(-13);
 		}
-		uint32_t temp_length = htonl(strlen(buf + 4));
-		memcpy(buf, &temp_length, sizeof(uint32_t));
+		// uint32_t temp_length = htonl(strlen(buf + 4));
+		// memcpy(buf, &temp_length, sizeof(uint32_t));
 		
-		int send_byte = nty_send(slave_fd, buf, strlen(buf + 4) + 4, 0);
+		int send_byte = nty_send(slave_fd, buf, used, 0);
 		if (send_byte != strlen(buf + 4) + 4) {
 			printf("nty_send 未发送完\n");
 			abort();
@@ -462,7 +479,7 @@ int NtyCo_Entry(unsigned short p, unsigned short p2) {
 	// 当存储值时，才去alloc分配块，并且alloc时把
 
 	// g_kv_array = (kv_type_t*)malloc(sizeof(kv_type_t) * KV_ARRAY_SIZE);
-	printf("8\n");
+	// printf("8\n");
 	unsigned short *port = (unsigned short*)malloc(sizeof(unsigned short));
 	*port = p;
 	unsigned short *m_port = (unsigned short*)malloc(sizeof(unsigned short));
@@ -479,9 +496,9 @@ int NtyCo_Entry(unsigned short p, unsigned short p2) {
 		ports->task_port = *port;
 		nty_coroutine_create(&ms_co, replicate_slave, ports);
 	}
-	printf("9\n");
+	// printf("9\n");
 	nty_schedule_run();
-	printf("10\n");
+	// printf("10\n");
 	return 0;
 }
 

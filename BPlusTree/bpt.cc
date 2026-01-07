@@ -57,27 +57,27 @@ inline record_t *find(leaf_node_t &node, const key_t &key) {
 bplus_tree::bplus_tree(const char *p, bool force_empty)
     : fp(NULL), fp_level(0)
 {
-    std::cout << "bplus_tree 1" << std::endl;
+    // std::cout << "bplus_tree 1" << std::endl;
     bzero(path, sizeof(path));
     // 把存在的或打算把文件放到的位置，传过来
     strcpy(path, p);
-    std::cout << "bplus_tree 2" << std::string(p) << std::endl;
-    std::cout << "bplus_tree 2" << path << std::endl;
+    // std::cout << "bplus_tree 2" << std::string(p) << std::endl;
+    // std::cout << "bplus_tree 2" << path << std::endl;
 
 
     // 如果本身有文件那么就读取原本的树的meta元信息
     // 不强制为空，则去fread读取meta
     if (!force_empty) {
-        std::cout << "bplus_tree 3" << std::endl;
+        // std::cout << "bplus_tree 3" << std::endl;
 
         // read tree from file
         // 失败返回-1，读取失败，那么强制为空
         // 如果读取本地文件的元信息成功
         if (bpt::bplus_tree::map(&meta, OFFSET_META) != 0) {
-            std::cout << "bplus_tree 4" << std::endl;
+            // std::cout << "bplus_tree 4" << std::endl;
             force_empty = true;
         }
-        std::cout << "bplus_tree 5" << std::endl;
+        // std::cout << "bplus_tree 5" << std::endl;
  
     }
 // 用w+,文件内容全部丢失,指针初始位置文件开头
@@ -285,7 +285,7 @@ int bplus_tree::insert(const key_t& key, value_t value)
         flock(fd, LOCK_UN);
         close_file();
         _mtx.unlock();
-        abort();
+        // abort();
         std::cout << "value same" << std::endl;
         return 1;// 1表示值存在，修改值
         // return 0;

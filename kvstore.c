@@ -71,7 +71,7 @@ int main(int argc, char* argv[]) {
         printf("tips: ./kvstore task_port [1|2] m_port\n");
         return -1;
     }
-    printf("5\n");
+    // printf("5\n");
 
     #define full_path "fullLog.db"
     if (stage == true) {
