@@ -646,10 +646,13 @@ int Process_Protocal(connection_t *c)
                         }
                         uint8_t temp_data = c->parser_stack.line.line_buffer[c->parser_stack.line.line_pos];
                         c->parser_stack.line.line_pos++;
-                        if (temp_data != '\r') {
+                        // c->parser_stack
+                        // if (temp_data != '\r') {
+                        if (c->parser_stack.bulk.filled != c->parser_stack.bulk.expected) {
                             p_bulk_data[c->parser_stack.bulk.filled] = temp_data;
                             c->parser_stack.bulk.filled++;
-                        } else if (temp_data == '\r') {
+                        // } else if (temp_data == '\r') {
+                        } else if (c->parser_stack.bulk.filled == c->parser_stack.bulk.expected) {
                             // abort();
                             if (c->parser_stack.line.line_pos == c->parser_stack.line.expected_end) {
                                 c->parser_stack.line.line_pos = c->parser_stack.line.expected_end = 0;
