@@ -735,8 +735,20 @@ int Process_Protocal(connection_t *c)
                         //set error msg
                         return -3;
                     }
-                } else if (c->parser_stack.array.inline_elements[0].size == 4) {
+                } else if (c->parser_stack.array.inline_elements[0].size == 5) {
                     //quit指令
+                    if (memcmp(c->parser_stack.array.inline_elements[0].ptr, "squit", 5) == 0) {
+                        task.allocator = c->parser_stack.array.inline_elements[0].allocator;
+                        task.conn_fd = c->parser_stack.array.inline_elements[0].conn_fd;
+                        task.pkey = c->parser_stack.array.inline_elements[0].ptr;
+                        task.mode = 3;
+                    } else {
+                         c->is_back = true;
+                        close(c->fd);
+                        abort();
+                        //set error msg
+                        return -3;
+                    }
                 } else if (c->parser_stack.array.inline_elements[0].size == 7) {
                     // COMMAND ping
                     // +PONG\r\n
